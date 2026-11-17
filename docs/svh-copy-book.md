@@ -1,9 +1,13 @@
 # The Sound of What's There
 ### A short book about Somatic Vocal Healing — and the copy well for the site
 
-**How to use this file (for Claude Code):** This is the well. Pull headlines, paragraphs, and quotes from here for any page, email, or post. No prices, no program structures live here — only the practice itself. The voice: plain, warm, a little dry, short sentences, one metaphor at a time. Jacob speaking to a circle of people he respects — never a wellness brand. Four laws, always: the sound **of** something, never *for* (one named exception, chapter 35) · **acknowledgment**, never "release" or "letting go" as the mechanism · **sounding**, not singing · facilitators **hold space**, the participant heals themselves. No outcome promises, no rescue framing, never "Hamer" or "German New Medicine" anywhere, in any string. (Marketing mechanics — discounts, deadlines, seat counters, "X places left", and a measure of genuine urgency — are a separate craft and are allowed in moderation; this book governs the copy, not the offer.)
+*v3 · 17 November 2026 — supersedes v2 (10 June 2026)*
 
-**Quote rule:** lines in `>` blockquotes are Jacob's own words, lightly cleaned — safe to attribute to him. Standalone *italic lines* in prose are written in his voice — use them freely as copy, but don't put quotation marks and his name on them.
+**How to use this file (for Claude Code):** This is the well. Pull headlines, paragraphs, and quotes from here for any page, email, or post. No prices, no program structures live here — only the practice itself. The voice: plain, warm, a little dry, short sentences, one metaphor at a time. Jacob speaking to a circle of people he respects — never a wellness brand. Four guidelines, always: the sound **of** something, never *for* (one named exception, chapter 35) · **acknowledgment before release** — release follows acknowledgment by itself; it is never the method, and "letting go" is never the instruction · **sounding**, not singing — and sounds stay tonal: a tone, a hum, never whispering or breath alone · facilitators **hold space**, the participant heals themselves. No outcome promises, no safety guarantees, no rescue framing, no digs at therapy or therapists. Never name the German "new medicine" school or its founder anywhere, in any string — the exact banned terms are kept in the project brief, not in this file, so a search of the repo stays clean. (Marketing mechanics — discounts, deadlines, seat counters, "X places left", and a measure of genuine urgency — are a separate craft and are allowed in moderation, and only when true: real deadlines, real seat counts, nothing manufactured. This book governs the copy, not the offer.)
+
+**Two terms:** *somatic sounding* is the act itself — ask a question, breathe in, and let the body produce a tonal sound without deciding its tone or timbre. *Somatic Vocal Healing* is somatic sounding with a therapeutic framework layered on top, so that what the sounds bring up can be spoken about, reflected on and integrated. In new copy, use the first for the practice and the second for the method and the trainings. Neither is a therapy in itself (chapter 47).
+
+**Quote rule:** lines in `>` blockquotes are Jacob's own words, lightly cleaned — safe to attribute to him. Standalone *italic lines* in prose are written in his voice — use them freely as copy, but don't put quotation marks and his name on them. A blockquote that opens with **Participant:** is a participant's words — anonymised, published only with consent, never attributed to Jacob. Never reword a blockquote: trim it at a sentence end or leave it. Several of Jacob's quotes say "Somatic Vocal Healing" where the newer term would be somatic sounding — they are left as spoken. The prose narrator is "we"; "I" appears only inside Jacob's quotes.
 
 ---
 ---
@@ -40,6 +44,8 @@ Maybe it wasn't safe to use your voice as a child. Maybe you brought an uncomfor
 
 > "I've never had a therapist ask me, *could you make a sound for that?* It's odd and sad that it doesn't happen — because it's still so natural to us."
 
+That's not a complaint about therapists. It's a measure of how far the voice has drifted out of the room — even the rooms built for feelings.
+
 The voice didn't break. It's not gone. It's just out of reach.
 
 > "It's like you have a car and a garage, but you've lost the keys somewhere in the house. The car is right there. You just can't reach it yet."
@@ -48,7 +54,7 @@ The voice didn't break. It's not gone. It's just out of reach.
 
 ## 3 · Why are our funerals silent?
 
-*Other headlines:* The collective silence · We are ashamed of our sounds · What the old traditions knew · The quietest culture in history · Keening, and what we replaced it with
+*Other headlines:* The collective silence · We are ashamed of our sounds · What the old traditions knew · A very quiet culture · Keening, and what we replaced it with
 
 This isn't only a personal forgetting. It's a cultural one.
 
@@ -127,6 +133,8 @@ The voice can do several beautiful things, and they are not the same thing.
 
 > "Somatic Vocal Healing goes in and out at the same time. What is here — and you express it."
 
+Two terms, so they stay straight. *Somatic sounding* is the act itself: you ask a question, breathe in, and let the body produce a tone — without deciding beforehand how it will sound. *Somatic Vocal Healing* is what that act becomes with a framework laid over it, so that what the sounds bring up can be spoken about, reflected on and integrated. Most of this book describes the first. Chapter 47 is plain about the second.
+
 One isn't superior to the others. But only one of them tells you the truth about today.
 
 ---
@@ -153,11 +161,11 @@ The sound *of* is the question. The sound *for* is the tea. This practice is bui
 
 ---
 
-## 8 · Acknowledgment, not letting go
+## 8 · Acknowledgment before release
 
-*Other headlines:* My word for letting go · Why the fire ritual doesn't work · Let it in first · The knot unties itself · Nothing leaves unheard
+*Other headlines:* My word for letting go · Why the fire ritual doesn't work · Let it in first · The knot unties itself · Nothing leaves unheard · Release comes second
 
-There are rituals where you write the thing on a little paper and throw it in the fire, to let it go. In my experience, that doesn't really work.
+There are rituals where you write the thing on a little paper and throw it in the fire, to let it go. In our experience, that doesn't really work.
 
 > "My word for letting go is acknowledgment. Everything wants to be acknowledged before it can go away by itself."
 
@@ -166,6 +174,8 @@ There are rituals where you write the thing on a little paper and throw it in th
 So we go the other way. Not letting go — letting in.
 
 > "The healing path with pain is not letting go — it is letting in. Give it all the space it needs. When pain has been fully acknowledged, it loses its reason to exist and releases itself."
+
+Notice the order in that last sentence. Release is real. It's just not something you do — it's what happens after.
 
 And acknowledgment, here, is not a mental act. It's not saying *I see you* to a feeling and checking a box. It happens in the moment of expression.
 
@@ -189,7 +199,7 @@ That's the question. Everything else in this work is a variation on it. You can 
 
 > "You'll be surprised how much information you can get from your voice. The feelings, the emotions — that's the first thing. That's quite easy. But then there's much more."
 
-And here's what happens underneath: after a couple of minutes of sounding, the brain quiets. The busy daytime frequencies soften toward slower ones, and you become receptive to what usually stays below the surface. The voice is a door to the unconscious that doesn't require a couch.
+And something else tends to happen after a couple of minutes of sounding: the mind gets quieter. People describe dropping below the day's chatter, and becoming more receptive to what usually stays under the surface. We haven't measured that. We've watched it happen, often.
 
 *A sound cannot procrastinate.*
 
@@ -209,7 +219,7 @@ And you don't need the story first. The sound opens the topic by itself — it b
 
 One participant put it best:
 
-> "Since learning this, I catch myself the moment I'm not being fully honest — I hear it in my own voice. We're all becoming human lie detectors."
+> **Participant:** "Since learning this, I catch myself the moment I'm not being fully honest — I hear it in my own voice. We're all becoming human lie detectors."
 
 *Talking circles it. Sounding enters it.*
 
@@ -248,6 +258,8 @@ The skill is in asking something your mind can't answer faster than your voice c
 > "What is the sound of what's real? I left it to you to fill in — hopefully not with your mind, but with your sound."
 
 One caution from the craft: don't ask the broadest question you can think of. The pain of an entire childhood is a web that runs through work, love, self-care, recurring thoughts — one sound won't clear a web. Ask smaller. Ask about *this* moment, *this* knot, *this* morning's heaviness. The big things are reached the way everything is reached here: one level at a time.
+
+For the tangled ones there is a map, called the ABC. A is the original event — the moment of the wounding. B is the time since: how that pain shaped the years between then and now. C is today. Each gets its own sound, in that order, and most of the time goes to A. Sounded separately, the three stop pulling on each other, and a web becomes three threads you can follow one at a time. This is deeper work — best done with someone holding the space.
 
 (A full bank of tested questions sits at the back of this book.)
 
@@ -386,7 +398,7 @@ And it's bigger than the loss of a loved one.
 
 There's even a posture for it. Grief wants to fold you forward and close you down. Do the opposite:
 
-> "Lift the head, relax the shoulders, sound the grief outward. The wave moves through in one to two minutes."
+> "Lift the head, relax the shoulders, sound the grief outward."
 
 Waves pass. That's what waves do.
 
@@ -434,7 +446,7 @@ And sometimes joy surprises you from inside the heavy work, because it was waiti
 
 Some days the answer to *what is the sound of the moment?* is grey. Flat. A nothing-sound. People apologise for it, as if numbness disqualified them from the practice.
 
-It doesn't. Flat is a feeling too — the body's dimmer switch, the dorsal weather of a system that learned to power down. It has its own sound: low, toneless, unsparkling. Make it anyway. Numbness, like everything else here, wants to be acknowledged before it will consider moving.
+It doesn't. Flat is a feeling too — the body's dimmer switch, the dorsal weather of a system that learned to power down. It has its own sound: low, flat, unsparkling. Make it anyway. Numbness, like everything else here, wants to be acknowledged before it will consider moving.
 
 And when even the outer voice won't come, there's a doorway called soundalisation: making the sound internally, silently, fully imagined. The body hears it. It counts.
 
@@ -444,7 +456,7 @@ And when even the outer voice won't come, there's a doorway called soundalisatio
 
 ## 23 · Mixed feelings — the whole forecast at once
 
-*Other headlines:* Emotional multitasking · More than one thing is true · The chord, not the note · You are never one feeling
+*Other headlines:* Emotional multitasking · More than one thing is true · A chord in one tone · You are never one feeling
 
 You are never only one feeling. Happy to be here *and* frustrated from the day. Grieving *and* relieved. Words force you to pick; the voice doesn't.
 
@@ -460,9 +472,9 @@ A tone is a chord, not a single line. Metallic *and* wavy means anger *and* sadn
 
 *Other headlines:* The wounds with names · Abandonment, rejection, betrayal, humiliation, injustice · Old rooms, known doors · A short tour of the deep ones
 
-Underneath the daily feelings live the older ones — the wounds with names: abandonment, rejection, betrayal, humiliation, injustice. Teachers have mapped them for decades. The voice lets you visit each one and hear, with unusual precision, which doors are open in you.
+Underneath the daily feelings live the older ones — the wounds with names: abandonment, rejection, betrayal, humiliation, injustice. Lise Bourbeau named these five, and many teachers have worked with them since. The voice lets you visit each one and hear, with unusual precision, which doors are open in you.
 
-Each wound sounds different in each person — sharp for one, hollow for another, a soundless gasp, a low moan, a sound that arrives easily and a sound that won't come at all. All of it is information. The wound that gets five stars in your own listening is the one worth returning to — gently, one level at a time, never all five in an afternoon.
+Each wound sounds different in each person — sharp for one, hollow for another, a thin high thread, a low moan, a tone that arrives easily and one that won't come at all. All of it is information. The wound that sounds loudest in your own listening is the one worth returning to — gently, one level at a time, never all five in an afternoon.
 
 That last part matters: don't process the whole catalogue in one sitting. These are old rooms. You visit; you don't move in.
 
@@ -485,7 +497,7 @@ And it remembers in the present tense. An old fear can look out through adult ey
 
 > "These are the eyes of the child looking at my current reality. This is the scared heart of the child beating in my current reality. But I, here and now, know that I am safe. And that I'm not being hurt — but that I'm being heard."
 
-*Being heard* is the operative phrase. It's what the child was waiting for, often for decades. The voice can give it in minutes what explanations couldn't give it in years.
+*Being heard* is the operative phrase. It's what the child was waiting for, often for decades. Explanations talk about the child. A tone lets the child speak.
 
 *Small voice. Old truth. Finally heard.*
 
@@ -533,13 +545,13 @@ You don't need the people present. You don't even need them alive. The system is
 
 The deepest things that shaped you happened before you could narrate them. The first months. The womb. The wordless years when everything was felt and nothing was filed under language.
 
-Talking can't reach what was never in words. The voice can — because the voice was there first.
+Talking has a hard time reaching what was never in words. The voice has a better chance — it was there first.
 
 > "Including early life, pre-verbal and even prenatal experience that still lives in the body — and that your voice can bring up."
 
 No memory is required. No story. You make the sound, and a body that has been holding something since before your first sentence finally gets to say it in its native language: tone.
 
-This is gentle work, and it titrates itself like everything here — the voice only opens what you can be with. But it explains something people often feel in their first sessions: *why does this reach so deep, so fast?* Because it goes in below the floor where words are kept.
+This is work to do gently, at the body's pace — and, when it goes this deep, with someone holding the space. It also explains something people often feel in their first sessions: *why does this reach so deep, so fast?* Because it goes in below the floor where words are kept.
 
 *The voice was there before the words. It still knows the way.*
 
@@ -588,21 +600,21 @@ So the practice stays humble. We attend to what's actually here, layer by honest
 
 ## 31 · The voice will never force you
 
-*Other headlines:* Safety, built in · The careful gatekeeper · Soft counts double · Your rhythm, your tempo · Volume is a dial, not a dare
+*Other headlines:* You set the pace · The careful gatekeeper · Soft counts double · Your rhythm, your tempo · Volume is a dial, not a dare
 
-Here's what makes this work safe to do: the safety isn't a rule we added. It's built into the instrument.
+The first safeguard in this work isn't a rule we added. It's how the instrument behaves.
 
 > "The voice will never force you. It always respects your rhythm and tempo."
 
-The voice is a careful gatekeeper. It only brings up what you can be with. And volume is yours to set — softer when something is big, barely a hum if that's the day. Soft counts. Soft often counts double.
+The voice tends to be a careful gatekeeper: in our experience it seldom brings up more than you can be with. Seldom is not never. Deep material can still arrive faster than expected — which is why volume is yours to set, why stopping is always allowed, and why the heavy work belongs in company (chapter 47).
 
-> "Your voice is an ally of the nervous system. If you don't use your voice, the nervous system can stay dysregulated."
+So: softer when something is big, barely a hum if that's the day. Soft counts. Soft often counts double.
 
 This is also why we don't override the voice with willpower — no forcing louder, no pushing past a close. A practice built on overriding teaches the body one more time that its signals don't matter. This practice is built on the opposite lesson.
 
 If you yawn — good. If you tremble — good. If the most you can manage today is a hum into a cushion — that was a complete practice.
 
-*The voice asks permission. Always.*
+*The voice asks permission.*
 
 ---
 
@@ -632,7 +644,7 @@ There's a posture to this work, and it's the opposite of method acting. We don't
 
 This is the difference between sounding *while in* an emotion and making the sound *of* it. Inside the storm, you're weather. One step back, voicing the storm, you're the witness — and witnessing is where acknowledgment lives. The bird's eye and the open throat, at the same time.
 
-It looks like a small technical note. It's actually the whole safety architecture: the feeling gets full expression, and you get to stay home in your body while it happens.
+It looks like a small technical note. It's actually a large part of the safety architecture: the feeling gets full expression, and you get to stay home in your body while it happens.
 
 *Be the witness with a voice, not the storm with a body.*
 
@@ -755,7 +767,7 @@ One warning, and it matters: this is a tool, not a destination. Don't go digging
 
 *Other headlines:* Healing at the speed of life · Not in three weeks — now · The appointment your feelings won't wait for · First aid for the inside
 
-Here's a quiet problem with how we've organised emotional life: the feeling happens on Tuesday, and the appointment is in three weeks.
+Here's a plain fact about calendars: the feeling happens on Tuesday, and the appointment is in three weeks. Nobody's fault.
 
 > "When I have something I want to work on — a moment of crisis — by the time the appointment comes, three weeks later, it's all gone, done and dusted."
 
@@ -777,7 +789,7 @@ Something happens in a circle that doesn't happen alone: you witness someone mak
 
 > "Community is the antidote to isolation. You don't have to do it alone."
 
-There's even a strange intimacy in the shared field, named best by Jacob in a moment of group grief:
+There's even a strange intimacy in the shared field, named in a moment of group grief:
 
 > "Your grief is my grief, your pain is my pain — because we are connected on that level. But your story is not my story. The feelings are collective. The stories are our own."
 
@@ -795,7 +807,7 @@ A human life is bracketed by two thresholds, and both of them were always accomp
 
 A newborn is welcomed by voices. And the dying, in older traditions, were sounded across: keened, sung, hummed to, accompanied to the very edge by the human instrument. We replaced that with hush, as if quiet were the same as respect.
 
-It isn't, always. A voice can hold a hand that hands can no longer hold. Tone reaches where conversation has already said goodbye. People who have sounded at a deathbed — softly, just breath with a little voice in it — describe it the same way: *I didn't know what to say, so I stopped saying, and stayed.*
+It isn't, always. A voice can hold a hand that hands can no longer hold. Tone reaches where conversation has already said goodbye. At a deathbed the sound is soft — a low hum on the out-breath, hardly more. You don't know what to say, so you stop saying, and stay.
 
 This is old knowledge wearing new clothes. The practice simply gives you back the instrument for it.
 
@@ -811,7 +823,7 @@ Sometimes a sound doesn't want to stay a tone. It starts to move, finds a second
 
 > "Your cup will tell you. You will feel the difference."
 
-Both happen. A melody can be a gift rising out of the truth — or a lovely exit from it. When in doubt, return once to the single tone — *whatever is here, one sound for it* — and see what's actually present. Then sing all you like.
+Both happen. A melody can be a gift rising out of the truth — or a lovely exit from it. When in doubt, return once to the single tone — *whatever is here, the sound of it* — and see what's actually present. Then sing all you like.
 
 Because music belongs in this life too. Songs around a piano, mantras on good harmonies, the sheer pleasure of a voice doing something beautiful — none of that is the enemy. It's just a different door. This practice exists so that when you sing, you'll be singing *from* yourself, not instead of yourself.
 
@@ -852,23 +864,25 @@ Her name was Upala.
 
 > "Her smile and her love and her dedication for this work — for me, she ignited it. It remains a source of power that pushes us forward."
 
-And the man who carries it forward:
+And about carrying it forward:
 
 > "I'm a self-taught, self-certified man. I came to these teachings through my own life experience — not from books, not from a teacher. So who am I to say you need a certificate to do something?"
 
+For sounding itself, that holds: nobody needs a certificate to use their own voice. Guiding other people through deep material is a different matter — chapter 47.
+
 ---
 
-## 46 · Why this practice could only exist now
+## 46 · Why this practice arrived now
 
-*Other headlines:* New tool, old voice · Why the ancients didn't do this · Standing on two shoulders · A modern practice with ancient material
+*Other headlines:* New tool, old voice · What the old paths didn't have · Standing on two shoulders · A modern practice with ancient material
 
 A fair question: if sounding is so natural, why isn't there a thousand-year-old tradition of exactly this?
 
-Because half of it couldn't exist yet. The old paths — shamanic, contemplative, devotional — were magnificent at the waking-up work: transcendence, oneness, the upward door. But they had no map of the psyche. No concept of the unconscious, of conditioning, of how a childhood shapes an adult. Psychology hadn't been invented.
+Because half of it is recent. The old paths — shamanic, contemplative, devotional — were magnificent at the waking-up work: transcendence, oneness, the upward door. What they didn't have is the developmental map we have now: the modern understanding of the unconscious, of conditioning, of how a childhood shapes an adult.
 
 > "Getting a transcendental experience is not the same as having a clear map of how we develop and what roadblocks are on that line. With each great evolution — the alphabet, the invention of psychology — humanity is able to go into next-level practices."
 
-Somatic Vocal Healing stands on both shoulders: the oldest instrument a human owns, and the newest understanding of what a human is. Ancient material, modern map. That combination is why it can be gentle *and* go deep — and why nobody could have built it sooner.
+Somatic Vocal Healing stands on both shoulders: the oldest instrument a human owns, and the newest understanding of what a human is. Ancient material, modern map. That combination is why it can be gentle *and* go deep — and why the two only met recently.
 
 *The voice is ancient. The map is new. We needed both.*
 
@@ -876,11 +890,13 @@ Somatic Vocal Healing stands on both shoulders: the oldest instrument a human ow
 
 ## 47 · What this is not
 
-*Other headlines:* Honest small print · No miracles, on purpose · What we won't promise you · The disclaimers we mean · Read this part too
+*Other headlines:* Honest small print · No miracles, on purpose · What we won't promise you · The disclaimers we mean · Read this part too · A tool, not a therapy
 
-This is not therapy, and it doesn't replace it.
+Somatic sounding is a tool — for self-regulation, for emotional regulation, for looking inward. It is not a therapy in itself, and it doesn't replace one.
 
 > "It will always remain valuable to have regular check-ups with someone who knows you and you trust. This is not replacing that."
+
+What the sounds bring up still wants to be spoken about, reflected on, integrated. That takes a framework laid over the sounding — the combination is what the name Somatic Vocal Healing refers to. And in a therapeutic setting it is only ever used alongside a training in therapeutic skills. There, it doesn't stand on its own.
 
 And when the healing work runs deep, hear this clearly:
 
@@ -915,11 +931,13 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 
 ## A · His words — safe to attribute to Jacob
 
+*Short forms below are trims of the chapter quotes. Where a line and its chapter version differ, the chapter version is the authority.*
+
 **On the voice itself**
 1. "The voice never lies. Words can lie — the voice never lies."
 2. "We were born with a voice. The first thing we do is open our mouth and say: *I'm here.*"
 3. "Your voice is an ally of the nervous system."
-4. "As long as I breathe, there is communication."
+4. "As long as you breathe, there is communication."
 5. "You'll be surprised how much information you can get from your voice."
 6. "You cannot do it wrong. It will always express something."
 7. "The voice will never force you. It always respects your rhythm and tempo."
@@ -928,22 +946,22 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 10. "Funerals are not meant to be silent occasions."
 
 **On the method**
-11. "We make the sound *of* something. Not *for* it."
+11. "We always make the sound *of* something."
 12. "The healing is in the acknowledgment. In being present with."
 13. "If we can be present with the core of a thing, the thing tends to surrender its need to exist."
 14. "My word for letting go is acknowledgment."
 15. "Everything wants to be acknowledged before it can go away by itself."
-16. "The path with pain is not letting go — it is letting in."
+16. "The healing path with pain is not letting go — it is letting in."
 17. "When pain has been fully acknowledged, it loses its reason to exist and releases itself."
 18. "That's not a mental thing — that's a knot untying."
 19. "You only ever need to go one level deeper."
 20. "What is the authentic sound you wish to make right now?"
 21. "What is the sound of what's real?"
 22. "If it would have worked already — it would have."
-23. "Don't be the smart one who points it out. Leave that gift to them."
+23. "When they discover a connection, leave that gift to them. Don't be the smart one who points it out."
 24. "There's no real right way — for each person, you get there one way or another."
 25. "Healing is a way of more allowing."
-26. "Everything exists for a reason. Know it, respect it, bow to it."
+26. "Everything exists for a reason. Know the reason, understand it, respect it, bow to it."
 27. "It goes in and out at the same time. What is here — and you express it."
 28. "Your cup will tell you. You will feel the difference."
 
@@ -971,7 +989,7 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 47. "The sound is not the problem. You, as a soul, were ready."
 48. "This fear from the system — I'm giving back. And please support me, so I am able to move forward."
 49. "It is the brave who receive."
-50. "Under all wounds is the wound of separation. Under that: joy, oneness, love."
+50. "Go below every wound, and below, and below, and you will end up at the wound of separation. And below that: joy, oneness, love."
 51. "It is true that we are separate, and it is true that we are one, at the same time."
 52. "In the softness of that paradox, there's also healing."
 53. "The pain needs to be felt. The injustice needs to be set right. I'm not saying go there directly."
@@ -980,7 +998,7 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 
 **On self and others**
 56. "You are the healer, and you are the healed."
-57. "I don't have to teach you. I have to remind you of what you never lost."
+57. "I don't have to teach you how to do it. I just have to bring your awareness back to what you've never forgotten."
 58. "There's nothing I did. It was already there."
 59. "Your pain is welcome."
 60. "Greetings to your mother, when you feel her."
@@ -998,17 +1016,17 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 70. "Life is meant to be felt."
 71. "When you finally expect an ugly sound — it's the most beautiful sound."
 72. "Don't expect miracles — expect a real relationship with your own voice."
-73. "It's odd and sad that no therapist ever asks: could you make a sound for that?"
+73. "I've never had a therapist ask me: could you make a sound for that?" *(in context only — never as a standalone line or headline)*
 74. "The car is right there. You just can't reach it yet."
 75. "It will always remain valuable to have regular check-ups with someone you trust. This is not replacing that."
 
 **On the origin**
 76. "She started to sound — before any of this was a method, before we had a name for it."
-77. "She'd move from turmoil to something like bliss, in a couple of minutes."
+77. "She'd move from turmoil to something like bliss, in a couple of minutes." *(origin story only — never as a standalone promise)*
 78. "She mostly just taught by being. By living."
 79. "Sometimes it still flows out of my mouth, and it always touches me, because I feel the essence."
 80. "It remains a source of power that pushes us forward."
-81. "I'm a self-taught, self-certified man. Who am I to say you need a certificate?"
+81. "I'm a self-taught, self-certified man. Who am I to say you need a certificate?" *(context only — not for certification or training pages)*
 
 **From participants (anonymised, with consent before publishing)**
 82. "Since learning this, I catch myself the moment I'm not being fully honest — I hear it in my own voice. We're all becoming human lie detectors."
@@ -1063,7 +1081,7 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 **Safety & self**
 37. Soft counts. Soft often counts double.
 38. Your tempo is the right tempo.
-39. The voice asks permission. Always.
+39. The voice asks permission.
 40. Volume is a dial, not a dare.
 41. Be the witness with a voice, not the storm with a body.
 42. A closed door has a sound too. Start with that one.
@@ -1131,6 +1149,11 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 - What is the sound of the pain that is not mine?
 - What is the sound of giving it back?
 
+**The ABC — for long-carried pain, with someone holding the space (ch. 12)**
+- A · What is the sound of the pain in that moment?
+- B · What is the sound of the pain that robbed part of my life?
+- C · What is the sound of the free adult I can now become?
+
 **The wider field**
 - What is the sound of my purpose?
 - What is the sound of my essence? My blueprint? *(use sparingly — see ch. 30's caution)*
@@ -1145,7 +1168,7 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 
 - Not singing — sounding.
 - Not for you — of you.
-- Not release — acknowledgment.
+- Not release first — acknowledgment first.
 - Not letting go — letting in.
 - Not broken — communicating.
 - Not silence — a voice you misplaced.
@@ -1154,10 +1177,11 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 - Not a healer — a space holder.
 - Not the story — the sound.
 - Not the bottom — one level deeper.
-- Not catharsis — acknowledgment.
+- Not chasing catharsis — acknowledging what's there.
 - Not screaming — one tone.
 - Not weather to escape — weather to voice.
 - Not a destination — a tool.
+- Not a therapy — a tool.
 - Not a miracle — a knot, untying.
 
 ---
@@ -1186,7 +1210,7 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 - The sound of, not for.
 - Of, not for.
 - Two small words, the whole method.
-- Acknowledgment, not letting go.
+- Acknowledgment before release.
 - Let it in first.
 - What is below that?
 - One level deeper is enough.
