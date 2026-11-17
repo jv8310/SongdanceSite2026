@@ -77,6 +77,7 @@ async function sendStudentEmail(
   which: 'received' | 'outcome',
   content: { subject: string; html: string; text: string },
   type: string,
+  attachment?: { filename: string; content: ArrayBuffer; contentType?: string } | null,
 ): Promise<Sent> {
   if (!env.RESEND_API_KEY) return { sent: false, error: 'email is not configured' };
   try {
@@ -89,6 +90,7 @@ async function sendStudentEmail(
       text: content.text,
       entityRefId: `cert-${type}-${a.id}-${Date.now()}`,
       track: { db: env.DB, type },
+      ...(attachment ? { attachments: [attachment] } : {}),
     });
     await stampCertEmail(env.DB, a.id, which);
     return { sent: true, error: null };
@@ -172,12 +174,17 @@ export async function certifyApplication(
 
   let mail: Sent | null = null;
   if (v.email) {
+    // The certificate rides along when the app took it: what is attached is what they download there.
+    const attached = v.file && !fileProblem && certified.certificate
+      ? { filename: certified.certificate.filename, content: v.file.bytes, contentType: certified.certificate.contentType }
+      : null;
     mail = await sendStudentEmail(
       env,
       a,
       'outcome',
-      certCertifiedEmail({ name: a.first_name, hasCertificate: !!certified.certificate, feedback: certified.feedback?.text ?? feedback ?? null }),
+      certCertifiedEmail({ name: a.first_name, hasCertificate: !!certified.certificate, attached: !!attached, feedback: certified.feedback?.text ?? feedback ?? null }),
       'cert_certified',
+      attached,
     );
   }
   const parts = [
@@ -223,7 +230,17 @@ export async function resendCertEmail(env: CertEnv, id: number, which: 'received
     const r = await askApp(env, (app) => app.member({ email: a.email }));
     const c = r.ok ? (r.data.certification?.certified ?? null) : null;
     if (!c) return { ok: false, message: r.ok ? 'The app does not have them as certified, so there is nothing to congratulate yet.' : r.message };
-    mail = await sendStudentEmail(env, a, 'outcome', certCertifiedEmail({ name: a.first_name, hasCertificate: !!c.certificate, feedback: c.feedback?.text ?? null }), 'cert_certified');
+    // With the certificate the app holds now, attached.
+    const file = c.certificate ? await askApp(env, (app) => app.certificate({ email: a.email })) : null;
+    const attached = file?.ok ? { filename: file.data.filename, content: file.data.bytes, contentType: file.data.contentType } : null;
+    mail = await sendStudentEmail(
+      env,
+      a,
+      'outcome',
+      certCertifiedEmail({ name: a.first_name, hasCertificate: !!c.certificate, attached: !!attached, feedback: c.feedback?.text ?? null }),
+      'cert_certified',
+      attached,
+    );
   } else {
     return { ok: false, message: 'There is no outcome to write about yet.' };
   }

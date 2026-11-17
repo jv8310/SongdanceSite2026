@@ -1,0 +1,72 @@
+---
+// The certificate, made on the page (src/lib/certificate/, the client half in
+// src/lib/client/certificate-maker.ts). Goes inside a form: it owns the form's
+// file field named "certificate". "Completion" or "Excellence" draws the
+// certificate from the name, date and class year, shows it, and on submit puts
+// the finished PDF in that field; "Upload a file" is the field as it always was;
+// "None" sends no certificate. English only for now.
+import { MAX_CERTIFICATE_BYTES } from '../../lib/admin/app-access';
+
+type Props = {
+  /** The name as it should stand on the certificate. */
+  name?: string;
+  /** YYYY-MM-DD: the day on the certificate when the form has no "Certified on" field of its own. */
+  day?: string;
+  /** Offer "No certificate now" (the Certify form: it can be added later). */
+  allowNone?: boolean;
+};
+const { name = '', day = '', allowNone = false } = Astro.props;
+const group = `cert-mode-${Math.random().toString(36).slice(2, 8)}`;
+const dateLabel = day
+  ? new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+  : '';
+const mb = MAX_CERTIFICATE_BYTES / 1024 / 1024;
+---
+
+<div class="cm" data-cert-maker>
+  <div class="cm-modes" role="radiogroup" aria-label="Certificate">
+    <span class="cm-label">Certificate</span>
+    <label><input type="radio" name={group} value="completion" data-cert-mode checked /> Completion</label>
+    <label><input type="radio" name={group} value="excellence" data-cert-mode /> Excellence</label>
+    <label><input type="radio" name={group} value="upload" data-cert-mode /> Upload a file</label>
+    {allowNone && <label><input type="radio" name={group} value="none" data-cert-mode /> None for now</label>}
+  </div>
+
+  <div class="cm-made" data-cert-made>
+    <div class="adm-grid">
+      <label class="span-2"><span>Name on the certificate</span><input type="text" value={name} maxlength="120" data-cert-name /></label>
+      <label><span>Date on it</span><input type="text" value={dateLabel} maxlength="40" data-cert-date /></label>
+      <label><span>Class of</span><input type="text" value={day.slice(0, 4)} maxlength="12" inputmode="numeric" data-cert-year /></label>
+    </div>
+    <img class="cm-preview" alt="The certificate as it will be made" data-cert-preview />
+    <div class="cm-row">
+      <button type="button" class="adm-btn adm-btn--tiny" data-cert-open>Open the PDF in a new tab</button>
+      <span class="cm-note">This is the certificate they get: in the app, and attached to the email.</span>
+    </div>
+  </div>
+
+  <div class="cm-upload" data-cert-upload hidden>
+    <div class="adm-grid">
+      <label class="span-full"><span>Your own file (PDF, JPEG or PNG, up to {mb} MB)</span><input type="file" name="certificate" accept="application/pdf,image/jpeg,image/png" data-cert-required={allowNone ? '0' : '1'} /></label>
+    </div>
+  </div>
+  <p class="cm-status" role="status" aria-live="polite" data-cert-status></p>
+</div>
+
+<script>
+  import { initCertificateMakers } from '../../lib/client/certificate-maker';
+  initCertificateMakers();
+</script>
+
+<style>
+  .cm { width: 100%; display: grid; gap: 10px; }
+  .cm-modes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 14px; }
+  .cm-modes label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .cm-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--adm-ink-soft); margin-right: 4px; }
+  .cm-made { display: grid; gap: 10px; }
+  .cm-made[hidden], .cm-upload[hidden] { display: none; }
+  .cm-preview { display: block; width: 100%; aspect-ratio: 297 / 210; border: 1px solid var(--adm-line); border-radius: 6px; background: #f4ecdf; box-shadow: 0 6px 18px rgba(42, 27, 42, 0.1); }
+  .cm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .cm-note, .cm-status { font-size: 13px; color: var(--adm-mute, #8a7c88); margin: 0; }
+  .cm-status:empty { display: none; }
+</style>

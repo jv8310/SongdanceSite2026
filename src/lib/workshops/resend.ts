@@ -26,7 +26,16 @@ export type SendEmailInput = {
   // message id, so the Resend webhook can fold open/click events back onto it.
   // Recording is best-effort and never blocks or fails the send.
   track?: { db: D1Database; type: string; registrationId?: number | null; variant?: string | null };
+  // Files that ride along (a certificate). Resend takes each as base64.
+  attachments?: Array<{ filename: string; content: ArrayBuffer | Uint8Array; contentType?: string }>;
 };
+
+function toBase64(data: ArrayBuffer | Uint8Array): string {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
 
 const DEFAULT_FROM = 'Songdance <info@mail.songdance.co>';
 const DEFAULT_REPLY_TO = 'support@songdance.co';
@@ -48,6 +57,9 @@ export async function sendEmail(input: SendEmailInput): Promise<{ id: string | n
       subject: input.subject,
       html: input.html,
       ...(input.text ? { text: input.text } : {}),
+      ...(input.attachments?.length
+        ? { attachments: input.attachments.map((f) => ({ filename: f.filename, content: toBase64(f.content), ...(f.contentType ? { content_type: f.contentType } : {}) })) }
+        : {}),
       headers: {
         'Auto-Submitted': 'auto-generated',
         'X-Auto-Response-Suppress': 'All',

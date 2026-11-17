@@ -9,9 +9,11 @@
 // did) with `return_to` this page.
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
+import CertificateMaker from '../../../components/admin/CertificateMaker.astro';
 import FeedbackEditor from '../../../components/admin/FeedbackEditor.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { CERT_STEPS, MAX_CERTIFICATE_BYTES, actorLabel, askApp, fileSize } from '../../../lib/admin/app-access';
+import { CERT_STEPS, actorLabel, askApp, fileSize } from '../../../lib/admin/app-access';
+import { tidyName } from '../../../lib/email/names';
 import { certWindowForEmail } from '../../../lib/courses/cert-window';
 import { certWindowLine } from '../../../lib/certification/actions';
 import {
@@ -65,7 +67,8 @@ const fmt = (iso: string | null) => {
 const todayBrussels = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date());
 const SOURCE_LABEL: Record<string, string> = { site: 'the form on the site', 'google-form': 'the Google Form (imported)', admin: 'added by hand' };
 const certificateHref = `/api/admin/app-certificate?email=${encodeURIComponent(a.email)}`;
-const mb = MAX_CERTIFICATE_BYTES / 1024 / 1024;
+// The name as it should stand on the certificate: as typed when it carries its own capitals, tidied when not.
+const certificateName = tidyName([a.first_name, a.last_name].filter(Boolean).join(' '));
 const quoted = certName(a).replace(/['\\]/g, '\\$&');
 // The review is open for anything not certified; a certified one manages what the app holds.
 const reviewable = !certified;
@@ -247,14 +250,14 @@ const reviewable = !certified;
             <h3>🎓 Certify</h3>
             <input type="hidden" name="action" value="certify" /><input type="hidden" name="id" value={a.id} />
             <div class="adm-grid">
-              <label class="span-2"><span>Certified on</span><input type="date" name="on" value={todayBrussels} required /></label>
-              <label class="span-2"><span>Certificate (optional: PDF, JPEG or PNG, up to {mb} MB)</span><input type="file" name="certificate" accept="application/pdf,image/jpeg,image/png" /></label>
-              <label class="span-full"><span>Note for the log (optional)</span><input type="text" name="note" maxlength="500" placeholder="e.g. reviewed the session video" /></label>
+              <label><span>Certified on</span><input type="date" name="on" value={todayBrussels} required /></label>
+              <label class="span-3"><span>Note for the log (optional)</span><input type="text" name="note" maxlength="500" placeholder="e.g. reviewed the session video" /></label>
             </div>
+            <CertificateMaker name={certificateName} allowNone />
             <FeedbackEditor label="Your feedback on their session (optional; they read it beside the certificate, and in the email)" />
-            <label class="cd-check"><input type="checkbox" name="send_email" checked /> Email them "Congratulations, you are certified"</label>
+            <label class="cd-check"><input type="checkbox" name="send_email" checked /> Email them "Congratulations, you are certified", with the certificate attached</label>
             <button type="submit" class="adm-btn adm-btn--solid">Certify {a.first_name ?? ''}</button>
-            <p class="cd-mute">Their certification page in the app turns to "You are certified", with the certificate to download and your feedback. The certificate and the feedback can also be added afterwards, on this page.</p>
+            <p class="cd-mute">Their certification page in the app turns to "You are certified", with the certificate to download and your feedback. The certificate is also attached to the email. Both the certificate and the feedback can be added or changed afterwards, on this page.</p>
           </form>
 
           <form method="POST" action="/api/admin/certification" class="cd-card">
@@ -288,10 +291,9 @@ const reviewable = !certified;
           <form method="POST" action="/api/admin/app-access" enctype="multipart/form-data" class="cd-card">
             <h3>{certified.certificate ? 'Replace the certificate' : 'Add the certificate'}</h3>
             <input type="hidden" name="action" value="add-certificate" /><input type="hidden" name="email" value={a.email} /><input type="hidden" name="return_to" value={self} />
-            <div class="adm-grid">
-              <label class="span-full"><span>PDF, JPEG or PNG, up to {mb} MB</span><input type="file" name="certificate" accept="application/pdf,image/jpeg,image/png" required /></label>
-            </div>
+            <CertificateMaker name={certificateName} day={certified.on} />
             <button type="submit" class="adm-btn adm-btn--solid">{certified.certificate ? 'Replace certificate' : 'Add certificate'}</button>
+            <p class="cd-mute">Adding it here sends no email. "Send the outcome email again" above sends the congratulations with this certificate attached.</p>
           </form>
           <form method="POST" action="/api/admin/app-access" class="cd-card">
             <h3>Your feedback on their session</h3>
@@ -378,6 +380,7 @@ const reviewable = !certified;
   .cd-card { display: grid; gap: 12px; justify-items: start; padding: 16px 18px; border: 1px solid var(--adm-line); border-radius: 12px; background: var(--adm-paper-soft, #fbf6ec); min-width: 0; }
   .cd-card > :global(*) { max-width: 100%; }
   .cd-card :global(.fb), .cd-card .adm-grid { width: 100%; }
+  .cd-card .adm-grid > label.span-3 { grid-column: span 3; }
   .cd-card--yes { border-color: #9bb38a; background: #f1f5ea; }
   .cd-card h3 { margin: 0; font-size: 16px; }
   .cd-check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
