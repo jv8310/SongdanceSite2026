@@ -35,6 +35,8 @@
 .ss-quote { font-family: var(--font-lyric); font-style: italic; font-size: 1.6em; line-height: 1.3; color: var(--ember-deep); text-align: center; margin: 32px 0 !important; }
 .ss-small { font-family: var(--font-body); font-size: var(--t-body-sm); color: var(--fg-quiet); line-height: 1.6; }
 .ss-small strong { color: var(--fg-soft); font-weight: 600; }
+/* A discount link: the list price struck through before the price it comes to. */
+.ss-was { color: var(--fg-quiet); margin-right: 4px; }
 /* "How fifty minutes usually go": four numbered beats. */
 .ss-steps { list-style: none; counter-reset: ss-step; padding: 0; margin: 0 0 18px; display: grid; gap: 14px; }
 .ss-steps li { counter-increment: ss-step; position: relative; padding-left: 44px; }
