@@ -169,6 +169,11 @@ its sheet are retired. Logic in [`src/lib/certification/`](src/lib/certification
   response"**, which carries the words and the form link filled in). A new attempt is a new
   row. "Without an email": back to waiting, set aside, delete. Everything posts to
   [`/api/admin/certification`](src/pages/api/admin/certification.ts).
+- **Set aside → certified, together** (`bulkCertifyArchived`): the "Set aside" tab offers one
+  button that marks every set-aside row certified, except one whose note says "not
+  certified" (any case); the panel names who stays before it is pressed. Each person is
+  certified in the app on the day they sent the form (someone already certified keeps
+  their day), never with an email; one the app did not take stays set aside and is named.
 - **Certified stays the app's record** (`app_certified`): the review page reads it live, so a
   certification made by Claude shows here too, and the list names anyone certified in the
   app with no row ("Add a record"). The site never writes an `app_` table.

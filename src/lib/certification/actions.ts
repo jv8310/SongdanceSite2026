@@ -28,6 +28,7 @@ import {
   deleteCertApplication,
   getCertApplication,
   insertCertApplication,
+  listCertApplications,
   setCertStatus,
   stampCertEmail,
   type CertApplication,
@@ -252,6 +253,62 @@ export async function removeApplication(env: CertEnv, id: number, actor: string)
   });
   await syncCertStatusToApp(env, a.email, actor).catch(() => {});
   return { ok: true, message: `The submission of ${certName(a)} is deleted. A certification in the app is not touched by this.` };
+}
+
+// ── Set aside → certified, in one go ────────────────────────────────────────
+
+/** A note that says no: these stay set aside. */
+export const isNotCertifiedNote = (note: string | null) => /not\s+certified/i.test(note ?? '');
+
+export type BulkCertifyPlan = { certify: CertApplication[]; stay: CertApplication[] };
+
+/** Every set-aside row, split by its note: "not certified" (any case) stays, the rest would be certified. */
+export async function planBulkCertify(db: D1Database): Promise<BulkCertifyPlan> {
+  const rows = await listCertApplications(db, { status: 'archived' });
+  return { certify: rows.filter((a) => !isNotCertifiedNote(a.admin_note)), stay: rows.filter((a) => isNotCertifiedNote(a.admin_note)) };
+}
+
+/**
+ * The old submissions whose outcome the sheet never recorded, marked certified
+ * together: each person is certified in the app on the day they sent the form
+ * (someone the app already has as certified keeps their day), the row becomes
+ * 'certified'. Never an email. A person the app did not take stays set aside
+ * and is named, so pressing again finishes the job.
+ */
+export async function bulkCertifyArchived(env: CertEnv, actor: string): Promise<ReviewResult> {
+  const plan = await planBulkCertify(env.DB);
+  if (!plan.certify.length) return { ok: true, message: 'Nothing to certify: every set-aside submission says "not certified" in its note, or there are none.' };
+  const list = await askApp(env, async (app) =>
+    app.certifiedList ? app.certifiedList() : { ok: false as const, error: 'not-deployed', message: 'The member app has not been deployed with certification submissions yet.' },
+  );
+  if (!list.ok) return { ok: false, message: `Nothing was changed: ${list.message}` };
+  const already = new Set(list.data.map((c) => c.email.toLowerCase()));
+  const brusselsDay = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date(iso));
+
+  let done = 0;
+  const failed: string[] = [];
+  const handled = new Set<string>();
+  // Oldest first, so someone with two submissions is certified on the day of the first.
+  for (const a of [...plan.certify].reverse()) {
+    if (!already.has(a.email) && !handled.has(a.email)) {
+      const r = await askApp(env, (app) => app.certify({ email: a.email, on: brusselsDay(a.submitted_at), note: 'Certified before submissions were kept on the site', actor }));
+      if (!r.ok) {
+        failed.push(`${certName(a)} (${r.message})`);
+        continue;
+      }
+    }
+    handled.add(a.email);
+    await setCertStatus(env.DB, a.id, { status: 'certified', by: actor });
+    done++;
+  }
+  for (const email of handled) await syncCertStatusToApp(env, email, actor).catch(() => {});
+  await logEventSafe(env.DB, { registration_id: null, kind: 'certification.bulk_certified', source: 'admin', payload: { by: actor, certified: done, stayed: plan.stay.length, failed: failed.length } });
+  const parts = [
+    `${done} submission${done === 1 ? '' : 's'} marked certified, without an email. In the app they read "You are certified", dated the day the form was sent.`,
+    plan.stay.length ? `${plan.stay.length} stay set aside (their note says "not certified").` : '',
+    failed.length ? `Not done, still set aside: ${failed.join('; ')}. Press again to retry.` : '',
+  ];
+  return { ok: failed.length === 0, message: parts.filter(Boolean).join(' ') };
 }
 
 // ── The Google Sheet ────────────────────────────────────────────────────────
