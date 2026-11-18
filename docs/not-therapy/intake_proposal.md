@@ -48,10 +48,20 @@ What it does not do:
    mailbox and in the mail provider's logs.
 5. **It gates nothing.** The intake is sent by hand after payment and its outcome changes nothing
    in the booking. A course has no intake and no acknowledgment at all.
-6. Small: the assessor still asks for an older Claude model by name; the travel-questions tool
+6. **The privacy policy promises three things the site does not yet do.** It says intake answers
+   are "read only by the facilitators of that program" (every admin login can open them), that
+   they are "deleted within twelve months after the program ends" (nothing deletes them; there is
+   only a delete button per intake), and that someone who would rather not have their intake read
+   with Claude's help can "say so in the form" (the form has no such field). The consent box on
+   the form does not mention health data or Claude either.
+7. **Only one retreat screens before payment.** Ritual of Belonging has a section ("A circle worth
+   protecting") and a required box confirming none of its situations apply. Dolphin & Sound has no
+   statement, no screening and no such box, and its booking is non-refundable; the Dutch
+   Klankopstellingen page has none either.
+8. Small: the assessor still asks for an older Claude model by name; the travel-questions tool
    beside it is on the current one. Worth bringing in line when this is touched.
 
-Points 3 and 4 affect the retreats today, whatever you decide about courses.
+Points 3, 4 and 6 affect the retreats today, whatever you decide about courses.
 
 ## 2. The shape I recommend
 
@@ -264,6 +274,8 @@ And to make it a real gate:
 - **The booking says where it stands** on the retreat's admin page: awaiting intake / conversation /
   confirmed / not now.
 - **The booking form says so**: *"Your place is confirmed after a short intake and a call with Jacob."*
+  Ritual of Belonging's section and box are the model; Dolphin & Sound and every later retreat
+  should carry the same before the pay button.
 - **A call for everyone** stays, as now; Claude's class decides how long a call it needs.
 
 ## 10. Privacy and law: for the legal adviser
@@ -276,7 +288,7 @@ about it, and what to have checked:
 | **Explicit consent** | Its own tick on the intake, apart from the purchase and from the terms. Refusing it means a conversation with you instead of the form, not a silent refusal. |
 | **Only what is needed** | The course intake asks categories, not diagnoses or medication names. Free text is limited to two fields. |
 | **Who can read** | You, and named facilitators per course or retreat (decision 5). Admin logins that only need orders should not see intakes: today every admin login can. |
-| **How long** | Proposed: course answers deleted 12 months after the course's live sessions end; retreat answers 12 months after the retreat; a "not now" 12 months after the decision. What stays: the acknowledgment (text version, date) with the order, as part of the contract. Your call (decision 7). |
+| **How long** | The privacy policy already says 12 months after the program ends. Proposed: keep that, and make it real with a nightly deletion: course answers 12 months after the course's live sessions end; retreat answers 12 months after the retreat; a "not now" 12 months after the decision; longer only when the person asks, as the policy allows. What stays: the acknowledgment (text version, date) with the order, as part of the contract. Your call (decision 7). |
 | **Kept out of** | App tables and the Claude connector; Drip and broadcast tags (never a tag that says someone was flagged); analytics and the Meta pixel on the intake pages; email bodies (decision 4). |
 | **Claude** | Anthropic processes the answers to prepare the reading; the privacy policy says so already (3.6) and says a person can ask for their intake not to be read this way. That needs a real choice on the form, not "say so in the form". |
 | **No automatic decisions** | A rule may make a course *wait for a person*; only you decide "not now". |
@@ -295,8 +307,14 @@ Questions for the adviser:
    worded so they hold for consumers in the EU, the UK and the US.
 4. Whether a phone number may be required, given its only purpose is a call about the intake.
 5. The privacy policy needs updating before launch: 3.5 speaks of "retreats and some in-depth
-   programs"; it should name the courses, the phone number's purpose, the retention periods and
-   the member's "My intake" page.
+   programs"; it should name the courses, the phone number's purpose and the member's "My intake"
+   page. Private sessions (the booking note, the recording) and certification videos are not
+   covered by it at all today.
+6. The terms have no right to decline, postpone or refer someone on wellbeing grounds (article 18
+   covers conduct only), although the intake asks people to agree to exactly that. They also say
+   (article 14.2) that consent to immediate access "is requested at checkout", and no checkout
+   has that box. With an intake gate, access is no longer immediate, so that article needs a look
+   in any case.
 
 ## 11. Four things to weigh before building
 
@@ -327,8 +345,9 @@ currently mix.
 
 ## 12. Order of work, if you say yes
 
-1. **Now, small**: the red-flag email from the hourly catch-up, and the email without the answers
-   (section 1, points 3 and 4). Independent of everything else.
+1. **Now, small**: the red-flag email from the hourly catch-up, the email without the answers,
+   and the three privacy-policy promises (section 1, points 3, 4 and 6). Independent of
+   everything else.
 2. **Copy** (the audit's rewrites), the safety page, the terms clause, "Is this therapy?" in each FAQ.
 3. **Acknowledgment box** at every checkout, stored per order with the wording's version; the same
    line in the confirmation email and a welcome step; the third tick for existing members.
