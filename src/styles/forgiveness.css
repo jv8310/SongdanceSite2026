@@ -1524,9 +1524,11 @@ html, body { background: var(--paper); }
 }
 
 /* ---------- Vimeo glimpse video ---------- */
+/* No bottom padding: the Opening follows on the same paper ground and brings
+   its own space above (the schedule that sat between them moved down the page). */
 .fc-video {
   background: var(--paper);
-  padding: var(--sp-9) var(--sp-7) var(--sp-10);
+  padding: var(--sp-9) var(--sp-7) 0;
 }
 .fc-video-inner {
   max-width: 980px; margin: 0 auto;
@@ -1547,7 +1549,7 @@ html, body { background: var(--paper); }
   border: 0;
 }
 @media (max-width: 720px) {
-  .fc-video { padding: var(--sp-8) var(--sp-5) var(--sp-9); }
+  .fc-video { padding: var(--sp-8) var(--sp-5) 0; }
   .fc-video-frame { border-radius: var(--r-md); }
 }
 
