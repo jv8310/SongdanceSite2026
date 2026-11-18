@@ -12,13 +12,11 @@
 //   sync      id                    tell the app again
 //   delete    id
 //   add       email, first_name, last_name, video_url, admin_note, status
-//   bulk-certify                    every set-aside row certified, except a note saying "not certified"
 //   import    file (CSV) or text (pasted from the sheet)                multipart
 import type { APIRoute } from 'astro';
 import { getSessionEmail, readCookie, verifySession } from '../../../lib/registrations/auth';
 import { MAX_CERTIFICATE_BYTES, askApp } from '../../../lib/admin/app-access';
 import {
-  bulkCertifyArchived,
   certifyApplication,
   importCertApplications,
   removeApplication,
@@ -63,7 +61,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const action = field('action');
   const id = Number(field('id'));
   const page = Number.isInteger(id) && id > 0 ? `${LIST}/${id}` : LIST;
-  const needsRow = !['add', 'import', 'bulk-certify'].includes(action);
+  const needsRow = !['add', 'import'].includes(action);
   if (needsRow && !(Number.isInteger(id) && id > 0)) return back(LIST, { ok: false, message: 'Which submission?' });
 
   try {
@@ -152,8 +150,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
           message: `Added by hand, without an email.${a.status === 'submitted' ? (sync.ok ? ' Their certification page in the app reads "waiting for review".' : ` The app has not followed yet (${sync.message}).`) : ''}`,
         });
       }
-      case 'bulk-certify':
-        return back(`${LIST}?status=certified`, await bulkCertifyArchived(env, actor));
       case 'import': {
         const f = form?.get('file');
         // Not trimmed: a pasted row that starts with an empty cell starts with a tab.

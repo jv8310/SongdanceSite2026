@@ -184,11 +184,6 @@ its sheet are retired. Logic in [`src/lib/certification/`](src/lib/certification
   like any chosen file. **It goes two places**: into the app (`addCertificate`) and, when the
   email is ticked, **attached to "Congratulations, you are certified"** (`sendEmail`'s
   `attachments`); "Send the outcome email again" attaches whatever certificate the app holds.
-- **Set aside → certified, together** (`bulkCertifyArchived`): the "Set aside" tab offers one
-  button that marks every set-aside row certified, except one whose note says "not
-  certified" (any case); the panel names who stays before it is pressed. Each person is
-  certified in the app on the day they sent the form (someone already certified keeps
-  their day), never with an email; one the app did not take stays set aside and is named.
 - **Certified stays the app's record** (`app_certified`): the review page reads it live, so a
   certification made by Claude shows here too, and the list names anyone certified in the
   app with no row ("Add a record"). The site never writes an `app_` table.
