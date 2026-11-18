@@ -169,6 +169,26 @@ its sheet are retired. Logic in [`src/lib/certification/`](src/lib/certification
   response"**, which carries the words and the form link filled in). A new attempt is a new
   row. "Without an email": back to waiting, set aside, delete. Everything posts to
   [`/api/admin/certification`](src/pages/api/admin/certification.ts).
+- **The certificate is made on the page** ([`src/lib/certificate/`](src/lib/certificate/),
+  `CertificateMaker.astro`, November 2026): the Certify form (and "Add / Replace the
+  certificate" on someone already certified) offers **Completion**, **Excellence**, "Upload
+  a file" or (when certifying) "None for now". The two templates are Jacob's certificate
+  maker redrawn as one SVG ([`svg.ts`](src/lib/certificate/svg.ts): every position measured
+  from that maker's layout and compared with it pixel for pixel; fonts, rings, wordmark and
+  signature in the generated `assets.ts`); English only. The name, the date on it and the
+  class year can be typed over; the preview is the drawing itself, and "Open the PDF"
+  shows the file. On submit the browser draws it at 300 dpi and wraps the picture in a
+  one-page A4 PDF ([`pdf.ts`](src/lib/certificate/pdf.ts), no library; the page is a picture,
+  so its text cannot be selected), puts it in the form's `certificate` field
+  ([`certificate-maker.ts`](src/lib/client/certificate-maker.ts)) and the server handles it
+  like any chosen file. **It goes two places**: into the app (`addCertificate`) and, when the
+  email is ticked, **attached to "Congratulations, you are certified"** (`sendEmail`'s
+  `attachments`); "Send the outcome email again" attaches whatever certificate the app holds.
+- **Set aside → certified, together** (`bulkCertifyArchived`): the "Set aside" tab offers one
+  button that marks every set-aside row certified, except one whose note says "not
+  certified" (any case); the panel names who stays before it is pressed. Each person is
+  certified in the app on the day they sent the form (someone already certified keeps
+  their day), never with an email; one the app did not take stays set aside and is named.
 - **Certified stays the app's record** (`app_certified`): the review page reads it live, so a
   certification made by Claude shows here too, and the list names anyone certified in the
   app with no row ("Add a record"). The site never writes an `app_` table.

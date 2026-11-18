@@ -741,7 +741,7 @@ function certificationSamples(b: string): EmailSample[] {
     'Thank you for this session. Your presence with your client is warm and steady.\n\n**What I would like you to look at**\n\n- The sounds became breath alone for long stretches. Keep it tonal: a hum is enough.\n- The session went on after the wave had landed. Close when it lands.\n\nRecord a new session with these two in mind, and send it when you are ready.';
   return [
     { id: 'cert_received', group, label: 'Submission received — waiting for review', timing: 'The moment the form on /certification/apply is sent', audience, content: certReceivedEmail({ name: 'maria voss', videoGiven: true }) },
-    { id: 'cert_certified', group, label: 'Certified — congratulations', timing: 'When you certify on /admin/certification with the email ticked', audience, content: certCertifiedEmail({ name: 'maria voss', hasCertificate: true, feedback }) },
+    { id: 'cert_certified', group, label: 'Certified — congratulations', timing: 'When you certify on /admin/certification with the email ticked', audience, content: certCertifiedEmail({ name: 'maria voss', hasCertificate: true, attached: true, feedback }) },
     { id: 'cert_response', group, label: 'Not certified yet — please see my response', timing: 'When you send a response on /admin/certification with the email ticked', audience, content: certResponseEmail({ name: 'maria voss', response, applyUrl: `${b}/certification/apply?email=maria%40example.com&first_name=Maria&last_name=Voss` }) },
     {
       id: 'cert_internal',
