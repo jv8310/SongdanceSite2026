@@ -14,7 +14,7 @@ import WEQuiet from '../components/workshop-english/WEQuiet.astro';
 import WEMasterclass from '../components/workshop-english/WEMasterclass.astro';
 import WERegister from '../components/workshop-english/WERegister.astro';
 import WEFooter from '../components/workshop-english/WEFooter.astro';
-import DiscoverMore from '../components/DiscoverMore.astro';
+import WEAfter from '../components/workshop-english/WEAfter.astro';
 import { buildCalendarItems, tzOptionsFor } from '../lib/workshops/calendar';
 import { currencyForCountry } from '../lib/workshops/currency';
 import { getRegistrationByAccessToken, getWorkshopById } from '../lib/workshops/db';
@@ -89,7 +89,10 @@ const tzOptions = tzOptionsFor(detectedTz);
       tzOptions={tzOptions}
       prefill={prefill}
     />
-    <DiscoverMore currentHref="/workshop" />
+    <!-- No "Find out more" band here (Jacob, November 2026): a visitor who has
+         read past the form stays with this workshop. Two short sections lead
+         back up to it instead. -->
+    <WEAfter />
     <WEFooter />
   </div>
 </Layout>

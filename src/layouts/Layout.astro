@@ -95,10 +95,6 @@ const showAdminBar = (path === '/admin' || path.startsWith('/admin/')) && !path.
       window.__SD_MC_PROMO__ = mcPromoPayload;
       window.__SD_MC_PROMO__.active = Date.now() < mcPromoPayload.endsAtMs;
     </script>
-    <!-- Review aid: highlights the June-2026 copy-pass changes when the URL
-         has ?changes. No-op otherwise. Remove with public/preview-changes.js
-         after the review round. -->
-    <script src="/preview-changes.js" defer></script>
   </head>
   <body>
     <div class="sd-site">

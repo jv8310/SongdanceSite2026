@@ -4,14 +4,14 @@
 // clipped by the tighter tiles. Images here are kept distinct from the hero,
 // work section and lineage portrait so nothing repeats down the page.
 const shots = [
-  { src: '/media/library/svh-retreat-portrait-smiling-rocks.webp', slot: 'g-a', pos: 'center 30%' },
-  { src: '/media/library/svh-retreat-sounding-pink-shirt.webp', slot: 'g-b', pos: 'center 24%' },
-  { src: '/media/library/svh-retreat-sounding-hat-rocks.webp', slot: 'g-c', pos: 'center 28%' },
-  { src: '/media/library/svh-retreat-sounding-black-vest.webp', slot: 'g-d', pos: 'center 26%' },
-  { src: '/media/library/svh-retreat-sounding-shawl.webp', slot: 'g-e', pos: 'center 28%' },
-  { src: '/media/library/svh-retreat-sounding-poncho-indoor.webp', slot: 'g-f', pos: 'center 35%' },
-  { src: '/media/library/svh-retreat-teaching-jacob-laughing.webp', slot: 'g-g', pos: 'center 40%' },
-  { src: '/media/library/svh-retreat-walk-embrace-sunset.webp', slot: 'g-h', pos: 'center 40%' },
+  { src: '/media/library/svh-retreat-portrait-smiling-rocks.webp', alt: 'A woman with white hair smiles, one hand raised to her chest', slot: 'g-a', pos: 'center 30%' },
+  { src: '/media/library/svh-retreat-sounding-pink-shirt.webp', alt: 'A woman in a pink shirt sounds with her eyes open, hands open in front of her', slot: 'g-b', pos: 'center 24%' },
+  { src: '/media/library/svh-retreat-sounding-hat-rocks.webp', alt: 'A man in a hat sounds with his eyes closed and both hands raised', slot: 'g-c', pos: 'center 28%' },
+  { src: '/media/library/svh-retreat-sounding-black-vest.webp', alt: 'A woman stands in morning light with both hands on her chest', slot: 'g-d', pos: 'center 26%' },
+  { src: '/media/library/svh-retreat-sounding-shawl.webp', alt: 'A woman in a colourful shawl sounds outdoors, hands crossed on her chest', slot: 'g-e', pos: 'center 28%' },
+  { src: '/media/library/svh-retreat-sounding-poncho-indoor.webp', alt: 'A woman in a bright poncho sounds with her mouth wide open in a group indoors', slot: 'g-f', pos: 'center 35%' },
+  { src: '/media/library/svh-retreat-teaching-jacob-laughing.webp', alt: 'Jacob sits on the floor beside a microphone, laughing while he teaches', slot: 'g-g', pos: 'center 40%' },
+  { src: '/media/library/svh-retreat-walk-embrace-sunset.webp', alt: 'Two women walk arm in arm into the evening sun', slot: 'g-h', pos: 'center 40%' },
 ];
 ---
 
@@ -30,7 +30,7 @@ const shots = [
       {
         shots.map((s) => (
           <figure class={`sd-gallery-item ${s.slot}`} data-anim="gallery-item">
-            <img src={s.src} alt="" loading="lazy" style={s.pos ? `object-position:${s.pos}` : undefined} />
+            <img src={s.src} alt={s.alt} loading="lazy" style={s.pos ? `object-position:${s.pos}` : undefined} />
           </figure>
         ))
       }

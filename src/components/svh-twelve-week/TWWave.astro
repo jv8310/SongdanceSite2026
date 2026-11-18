@@ -1,10 +1,12 @@
 ---
-// A thin full-bleed "sounding wave" divider between movements.
+// A thin full-bleed "sounding wave" divider between movements: one live,
+// sustained tone (the shared sound kit; it was the svhgpt-08 illustration).
 // `alt` tints the band to match an adjacent paper-soft section.
+import SoundWave from '../sound/SoundWave.astro';
 interface Props { alt?: boolean }
 const { alt = false } = Astro.props;
 ---
 
 <div class:list={["tw-wave", { "tw-wave--alt": alt }]} aria-hidden="true">
-  <img src="/media/library/svhgpt-08-oscillation-breath-rhythm.webp" alt="" loading="lazy" />
+  <SoundWave kind="tone" label="One clear, sustained tone" height="clamp(110px, 14vw, 190px)" />
 </div>

@@ -1,0 +1,73 @@
+---
+// Under the registration form (Jacob, November 2026): the "Find out more" band
+// that stood here sent people off to other pages. These two short sections
+// keep them with the workshop instead, and each ends on a button back up to
+// the form (#register).
+//
+//  1. Three moments in pictures — real retreat photographs, said to be so (the
+//     workshop itself is on Zoom), each under one copy-book line.
+//  2. A word for whoever is still hesitating: copy book ch. 37, with Jacob's
+//     own words as a quote (never reworded) and ch. 31's "soft counts".
+const moments = [
+  {
+    img: '/media/library/svh-retreat-sounding-black-vest.webp',
+    alt: 'A woman stands in morning light with both hands on her chest',
+    caption: 'Come as you sound.',
+  },
+  {
+    img: '/media/library/svh-retreat-portrait-smiling-rocks.webp',
+    alt: 'A woman with white hair smiles, one hand raised to her chest',
+    caption: 'Quiet people welcome.',
+  },
+  {
+    img: '/media/library/svh-retreat-walk-embrace-sunset.webp',
+    alt: 'Two women walk arm in arm into the evening sun',
+    caption: 'Witnessed, not watched.',
+  },
+];
+---
+
+<section class="we-after-moments" aria-label="The practice, in pictures">
+  <div class="we-after-inner">
+    <div class="we-after-head">
+      <div class="we-eyebrow">The same practice, on retreat</div>
+    </div>
+    <div class="we-after-grid" tabindex="0">
+      {
+        moments.map((m) => (
+          <figure class="we-after-moment">
+            <img src={m.img} alt={m.alt} loading="lazy" decoding="async" />
+            <figcaption>{m.caption}</figcaption>
+          </figure>
+        ))
+      }
+    </div>
+    <div class="we-after-cta-wrap">
+      <a href="#register" class="we-after-cta">
+        Choose your date <i class="ph-light ph-arrow-up"></i>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="we-after-first">
+  <div class="we-after-first-inner">
+    <div class="we-eyebrow">If you’re still hesitating</div>
+    <h2 class="we-after-first-head">The first sound is the <em>longest.</em></h2>
+    <p class="we-after-first-quote">
+      “Usually what happens is this: for a long time, people don’t dare. And
+      then suddenly something happens — and they don’t care anymore, and they
+      just make the sound.”
+    </p>
+    <div class="we-after-first-by">— Jacob</div>
+    <p class="we-after-first-body">
+      Every sound after the first is shorter. And soft counts: a hum is a
+      complete practice.
+    </p>
+    <div class="we-after-cta-wrap">
+      <a href="#register" class="we-after-cta">
+        Register for the next workshop <i class="ph-light ph-arrow-up"></i>
+      </a>
+    </div>
+  </div>
+</section>

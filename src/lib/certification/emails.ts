@@ -56,10 +56,12 @@ export function certReceivedEmail(ctx: { name?: string | null; videoGiven: boole
 }
 
 // ── Certified ───────────────────────────────────────────────────────────────
-export function certCertifiedEmail(ctx: { name?: string | null; hasCertificate: boolean; feedback: string | null }): EmailContent {
+export function certCertifiedEmail(ctx: { name?: string | null; hasCertificate: boolean; attached?: boolean; feedback: string | null }): EmailContent {
   const opening = 'Congratulations: you are certified in Somatic Vocal Healing.';
   const second = 'I have watched your session, and it is a joy to write this to you.';
-  const where = ctx.hasCertificate
+  const where = ctx.attached
+    ? 'Your certificate is attached to this email. It is also on your certification page in the Songdance app, to download whenever you need it.'
+    : ctx.hasCertificate
     ? 'Your certificate is ready to download on your certification page in the Songdance app.'
     : 'Your certificate will be on your certification page in the Songdance app as soon as it is added.';
   const fb = ctx.feedback?.trim() ? ctx.feedback : null;
@@ -75,7 +77,7 @@ export function certCertifiedEmail(ctx: { name?: string | null; hasCertificate: 
       p('Thank you for the care you brought to this. I am glad you are out there holding space.'),
       p('With love,<br />Jacob'),
     ].join('\n'),
-    cta: { label: ctx.hasCertificate ? 'Download your certificate' : 'Open your certification page', href: CERT_APP_URL },
+    cta: { label: ctx.attached || !ctx.hasCertificate ? 'Open your certification page' : 'Download your certificate', href: CERT_APP_URL },
   });
   const text = [
     greetingText(ctx.name),

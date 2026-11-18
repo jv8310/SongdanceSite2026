@@ -1,5 +1,12 @@
 ---
-// The four experience beats. This is the neutral copy rendered server-side so
+// The four experience beats — and little else (Jacob, November 2026): the
+// section used to open on a second big headline and three paragraphs right
+// after WEOpening's, and close on two lyric lines in two sizes. Now it is a
+// short heading, the four cards, the facts in one line and the way to register.
+// (No practice on the page either: the sound of the moment is what we do in
+// the workshop, and the page doesn't give it away.)
+//
+// This is the neutral copy rendered server-side so
 // no-JS visitors get a complete page. The personalization controller in
 // workshop.astro rewrites every card's title + body to the visitor's chosen
 // lens (healing / freedom / professional) — see the CARDS map there.
@@ -25,31 +32,11 @@ const items = [
 
 <section class="we-what" id="workshop">
   <div class="we-what-inner">
-    <div class="we-what-head">
+    <div class="we-what-head we-what-head--wide">
       <div class="we-eyebrow">What to expect</div>
-      <h2 class="we-h2">
-        Seventy minutes —<br />
-        and a <em>different way in</em> to yourself.
-      </h2>
+      <h2 class="we-h2">What happens in <em>seventy minutes</em></h2>
     </div>
 
-    <div class="we-what-intro">
-      <p>
-        Somatic Vocal Healing is a somatic practice: you use your own voice to
-        feel what's here and give it expression. Singing is its own beautiful
-        art — this is something quieter and more inward. Your voice becomes a
-        way to meet what's alive in you, and the crackle, the wobble, the little
-        break in the throat all belong, because they carry information.
-      </p>
-      <p>
-        In these seventy minutes I'll introduce you to the method, gently. You'll sound.
-        You'll feel. You'll notice that your body has been waiting a long time
-        for a language that doesn't come from the head.
-      </p>
-      <p>You don't need a good voice. You need your honest one.</p>
-    </div>
-
-    <div class="we-what-sub">What you'll experience</div>
     <div class="we-what-grid">
       {
         items.map((it, i) => (
@@ -62,13 +49,8 @@ const items = [
       }
     </div>
 
-    <p class="we-what-coffee">
-      Seventy minutes only opens the door. But it's enough to feel that this is real —
-      and to leave with a practice you can keep for
-      <em>the rest of your life.</em>
-    </p>
-    <p class="we-what-coffee-foot">
-      Seventy minutes. <span data-sd-price="ticket">22€</span>. That's deliberate — <em>the door should be easy to open.</em>
+    <p class="we-what-facts">
+      70 minutes · Live on Zoom · Replay included · <span data-sd-price="ticket">22€</span>
     </p>
 
     <div class="we-what-cta-wrap">
