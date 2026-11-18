@@ -13,7 +13,6 @@ import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { askApp } from '../../../lib/admin/app-access';
-import { planBulkCertify } from '../../../lib/certification/actions';
 import {
   CERT_STATUS_LABEL,
   CERT_STATUS_PILL,
@@ -68,9 +67,6 @@ if (ready && appCertified.size && (tab === 'certified' || tab === 'all') && !sea
   withoutRow = [...appCertified.entries()].filter(([e]) => !have.has(e)).map(([email, v]) => ({ email, ...v }));
 }
 
-// On the "Set aside" tab: what marking them all certified would do, before it is pressed.
-const bulk = ready && tab === 'archived' && !search ? await planBulkCertify(env.DB) : null;
-
 const fmtDay = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
@@ -120,22 +116,6 @@ const SOURCE_LABEL: Record<string, string> = { site: 'the form', 'google-form': 
             <button class="adm-btn adm-btn--ghost" type="submit">Search</button>
           </form>
         </div>
-
-        {bulk && bulk.certify.length > 0 && (
-          <div class="cert-bulk">
-            <p>
-              <strong>Mark the set-aside ones as certified.</strong> {bulk.certify.length} would become certified;
-              {bulk.stay.length > 0
-                ? <> {bulk.stay.length} stay set aside because their note says "not certified": {bulk.stay.map((a) => certName(a)).join(', ')}.</>
-                : <> none has "not certified" in its note, so none stays behind.</>}
-            </p>
-            <p class="cert-mute">Each is certified in the app on the day they sent the form (someone the app already has as certified keeps their day). No email is sent. To keep one out, open it and write "Not certified" in your note first.</p>
-            <form method="POST" action="/api/admin/certification" onsubmit={`return confirm('Mark ${bulk.certify.length} set-aside submissions as certified? No email is sent.')`}>
-              <input type="hidden" name="action" value="bulk-certify" />
-              <button class="adm-btn adm-btn--solid" type="submit">Mark {bulk.certify.length} as certified</button>
-            </form>
-          </div>
-        )}
 
         {rows.length === 0 ? (
           <p class="adm-empty">
@@ -275,8 +255,6 @@ const SOURCE_LABEL: Record<string, string> = { site: 'the form', 'google-form': 
   .cert-search { display: flex; gap: 6px; }
   .cert-search input[type='search'] { padding: 7px 10px; border: 1px solid var(--adm-line); border-radius: 6px; font: inherit; font-size: 14px; min-width: 220px; }
   .cert-scroll { overflow-x: auto; }
-  .cert-bulk { margin: 0 0 16px; padding: 14px 16px; border: 1px solid #9bb38a; border-radius: 10px; background: #f1f5ea; font-size: 14px; display: grid; gap: 8px; justify-items: start; }
-  .cert-bulk p { margin: 0; }
   .cert-video { display: block; white-space: nowrap; }
   .cert-mute { color: var(--adm-mute, #8a7c88); }
   .cert-warn { color: var(--adm-danger, #b53d3d); }
