@@ -201,6 +201,11 @@ body { background: var(--adm-paper); }
 }
 .adm-section-head h2 { margin-bottom: 12px; }
 .adm-autoassign { margin: 0 0 12px; }
+.adm-rooms-actions {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+.adm-rooms-actions .adm-autoassign { margin: 0; }
 .adm-section h2 {
   font-family: Georgia, serif; font-weight: 500;
   font-size: 1.15rem; margin: 0 0 12px;

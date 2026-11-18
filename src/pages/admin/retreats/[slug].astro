@@ -1047,16 +1047,19 @@ const flash = (() => {
     <section class="adm-section">
       <div class="adm-section-head">
         <h2>Rooms</h2>
-        <form
-          method="POST"
-          action="/api/admin/auto-assign-rooms"
-          class="adm-autoassign"
-          onsubmit={`return confirm('Auto-assign every unassigned paid guest to a room matching what they purchased? Pending/unpaid holds are skipped (placed when they pay); already-assigned people are left as-is.')`}
-        >
-          <input type="hidden" name="product_slug" value={productSlug} />
-          <input type="hidden" name="return_to" value={returnTo} />
-          <button type="submit" class="adm-btn adm-btn--solid">Auto-assign unassigned</button>
-        </form>
+        <div class="adm-rooms-actions">
+          <a class="adm-btn" href={`/api/admin/rooms.csv?product=${productSlug}`}>Export rooms CSV</a>
+          <form
+            method="POST"
+            action="/api/admin/auto-assign-rooms"
+            class="adm-autoassign"
+            onsubmit={`return confirm('Auto-assign every unassigned paid guest to a room matching what they purchased? Pending/unpaid holds are skipped (placed when they pay); already-assigned people are left as-is.')`}
+          >
+            <input type="hidden" name="product_slug" value={productSlug} />
+            <input type="hidden" name="return_to" value={returnTo} />
+            <button type="submit" class="adm-btn adm-btn--solid">Auto-assign unassigned</button>
+          </form>
+        </div>
       </div>
       <table class="adm-table adm-table--rooms">
         <thead>
