@@ -43,8 +43,11 @@ const questions = [
       }
     </dl>
 
+    <!-- Jacob's own wording for this page (18 Nov 2026): "welcome", with the
+         stress on "ugly". The copy book (ch. 5) has the line as he first said
+         it, with "expect" — don't "correct" this one back to it. -->
     <p class="we-quiet-close">
-      “When you finally expect an ugly sound — it’s the most beautiful sound.”
+      “When you finally welcome an <em>ugly</em> sound — it’s the most beautiful sound.”
     </p>
     <div class="we-quiet-by">— Jacob</div>
   </div>
@@ -99,6 +102,12 @@ const questions = [
     color: var(--ink);
     max-width: 44ch;
     text-wrap: balance;
+  }
+  /* The whole line is already Cormorant italic, so the stressed word is
+     marked in ember, the way the page's other lyric lines mark theirs. */
+  .we-quiet-close em {
+    font-style: italic;
+    color: var(--ember);
   }
   .we-quiet-by {
     margin-top: var(--sp-3);
