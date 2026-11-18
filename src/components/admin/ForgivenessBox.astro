@@ -1,0 +1,278 @@
+---
+// The Forgiveness box at the top of /admin/stats and /ads: how the Forgiveness
+// Course is doing against its own ads (lib/ads/forgiveness-report.ts). Its
+// campaigns are the ones with "Forgiveness" in their name, and they are charged
+// to no workshop session, so this is the one place their money is read.
+//
+// It brings its own styles and colour tokens (--fb-*, defaulting to the admin
+// palette); /ads re-points them to its own.
+
+import type { ForgivenessFigures, ForgivenessReport } from '../../lib/ads/forgiveness-report';
+import { ROAS_TARGET } from '../../lib/workshops/stats';
+
+interface Props {
+  report: ForgivenessReport;
+  // Links into the admin (the registrants list). Off on /ads, whose viewer
+  // holds only the ads password.
+  links?: boolean;
+}
+
+const { report: r, links = true } = Astro.props;
+const run = r.run;
+
+const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('en-IE');
+const eur = (minor: number) =>
+  '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const signed0 = (minor: number) =>
+  (minor < 0 ? '−€' : '€') + Math.round(Math.abs(minor) / 100).toLocaleString('en-IE');
+const roasStr = (v: number | null) => (v != null ? v.toFixed(2) + '×' : '—');
+const int = (v: number) => v.toLocaleString('en-IE');
+const tone = (roas: number | null) =>
+  roas == null ? 'flat' : roas >= ROAS_TARGET ? 'good' : roas >= 1 ? 'mid' : 'bad';
+const profitTone = (m: number) => (m > 0 ? 'good' : m < 0 ? 'bad' : 'flat');
+const day = (ymd: string) =>
+  new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+    .format(new Date(`${ymd}T12:00:00Z`));
+const startLabel = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels',
+}).format(new Date(r.firstSessionUtc));
+
+const status = !r.registrationOpen
+  ? 'Registration closed — all four sessions have run'
+  : r.daysToFirstSession != null
+    ? r.daysToFirstSession === 0
+      ? `On sale · starts today (${startLabel})`
+      : `On sale · starts in ${r.daysToFirstSession} day${r.daysToFirstSession === 1 ? '' : 's'} (${startLabel})`
+    : `On sale · ${r.sessionsAhead} of 4 sessions still ahead`;
+
+// Cumulative revenue vs cumulative ad spend over the run: the gap between the
+// two lines is the profit so far.
+const W = 600;
+const H = 96;
+let cr = 0;
+let cs = 0;
+const cum = r.days.map((d) => ({ date: d.date, rev: (cr += d.revenueEurMinor), spend: (cs += d.spendEurMinor) }));
+const maxY = Math.max(1, ...cum.map((c) => Math.max(c.rev, c.spend)));
+const path = (key: 'rev' | 'spend') =>
+  cum
+    .map((c, i) => {
+      const x = cum.length > 1 ? (i / (cum.length - 1)) * W : 0;
+      const y = H - 3 - (H - 8) * (c[key] / maxY);
+      return `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join('');
+const showChart = cum.length >= 2 && (cr > 0 || cs > 0);
+
+// Today, the last 7 days, and the page's own period when it is neither of
+// those (nor all time, which is the run above).
+const sameAs = (f: string, t: string) => r.windowFrom === f && r.windowTo === t;
+const windowRow =
+  r.window && !sameAs(r.todayDate, r.todayDate) && !sameAs(r.last7From, r.todayDate)
+    ? [{
+        label: r.windowFrom && r.windowTo
+          ? r.windowFrom === r.windowTo ? day(r.windowFrom) : `${day(r.windowFrom)} → ${day(r.windowTo)}`
+          : 'This period',
+        f: r.window,
+      }]
+    : [];
+const rows: Array<{ label: string; f: ForgivenessFigures }> = [
+  { label: 'Today', f: r.today },
+  { label: 'Last 7 days', f: r.last7 },
+  ...windowRow,
+];
+---
+
+<section class="fb" aria-labelledby="fb-title">
+  <header class="fb-head">
+    <div>
+      <p class="fb-kicker">{status}</p>
+      <h2 id="fb-title" class="fb-title">The Forgiveness Course</h2>
+      <p class="fb-sub">
+        Every sale against its own ads{r.runFrom ? <> since <strong>{day(r.runFrom)}</strong></> : ''} — whatever period the page shows.
+        {links && <> <a href="/admin/courses/forgiveness-course">Registrants →</a></>}
+      </p>
+    </div>
+    <div class="fb-roas">
+      <b class={`fb-t-${tone(run.roas)}`}>{roasStr(run.roas)}</b>
+      <span>ROAS<br />sales ÷ ad spend</span>
+    </div>
+  </header>
+
+  <div class="fb-figs">
+    <div class="fb-fig">
+      <span>Sales</span>
+      <b>{int(run.sales)}</b>
+      <em>
+        {run.free > 0 && <>+ {int(run.free)} free place{run.free === 1 ? '' : 's'} · </>}
+        {run.refunded > 0 && <>{int(run.refunded)} refunded · </>}
+        {run.bumpCount > 0 ? <>{int(run.bumpCount)} order bump{run.bumpCount === 1 ? '' : 's'}</> : 'no order bumps yet'}
+      </em>
+    </div>
+    <div class="fb-fig">
+      <span>Revenue</span>
+      <b>{eur0(run.revenueEurMinor)}</b>
+      <em>net of VAT{run.bumpsEurMinor > 0 && <> · {eur0(run.bumpsEurMinor)} from bumps</>}</em>
+    </div>
+    <div class="fb-fig">
+      <span>Ad spend</span>
+      <b>{eur0(run.spendEurMinor)}</b>
+      <em>
+        {run.spendEurMinor > 0
+          ? <>{eur0(run.prospectingEurMinor)} prospecting · {eur0(run.retargetingEurMinor)} retargeting</>
+          : 'no Forgiveness campaign has spent yet'}
+      </em>
+    </div>
+    <div class="fb-fig">
+      <span>Profit</span>
+      <b class={`fb-t-${profitTone(run.profitEurMinor)}`}>{signed0(run.profitEurMinor)}</b>
+      <em>revenue − ad spend</em>
+    </div>
+    <div class="fb-fig">
+      <span>Cost per sale</span>
+      <b>{run.costPerSaleEurMinor != null ? eur(run.costPerSaleEurMinor) : '—'}</b>
+      <em>{run.avgOrderEurMinor != null ? <>an order brings {eur(run.avgOrderEurMinor)}</> : 'ad spend ÷ sales'}</em>
+    </div>
+  </div>
+
+  {run.gapToTargetEurMinor != null && (
+    <p class="fb-goal">
+      {run.gapToTargetEurMinor > 0 ? (
+        <><strong>{eur0(run.gapToTargetEurMinor)}</strong> more in sales to reach <strong>{ROAS_TARGET}×</strong> on this spend{run.avgOrderEurMinor ? <> — about <strong>{int(Math.ceil(run.gapToTargetEurMinor / run.avgOrderEurMinor))}</strong> more order{Math.ceil(run.gapToTargetEurMinor / run.avgOrderEurMinor) === 1 ? '' : 's'} at today’s average</> : ''}.</>
+      ) : (
+        <>Past <strong>{ROAS_TARGET}×</strong> — <strong>{eur0(-run.gapToTargetEurMinor)}</strong> above the line.</>
+      )}
+    </p>
+  )}
+
+  <div class="fb-lower">
+    <div class="fb-tablewrap">
+    <table class="fb-table">
+      <thead>
+        <tr><th></th><th class="num">Sales</th><th class="num">Revenue</th><th class="num">Ad spend</th><th class="num">Profit</th><th class="num">ROAS</th></tr>
+      </thead>
+      <tbody>
+        {rows.map(({ label, f }) => (
+          <tr>
+            <th scope="row">{label}</th>
+            <td class="num">{int(f.sales)}</td>
+            <td class="num">{eur0(f.revenueEurMinor)}</td>
+            <td class="num">{eur0(f.spendEurMinor)}</td>
+            <td class={`num fb-t-${profitTone(f.profitEurMinor)}`}>{signed0(f.profitEurMinor)}</td>
+            <td class={`num fb-t-${tone(f.roas)}`}>{roasStr(f.roas)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    </div>
+
+    {showChart && (
+      <figure class="fb-chart">
+        <figcaption>
+          <span class="fb-key fb-key--rev"></span>Revenue {eur0(cr)}
+          <span class="fb-key fb-key--spend"></span>Ad spend {eur0(cs)}
+          <span class="fb-chart-note">running totals, {day(cum[0].date)} → {day(cum[cum.length - 1].date)}</span>
+        </figcaption>
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`Running revenue ${eur0(cr)} against running ad spend ${eur0(cs)}`}>
+          <line x1="0" y1={H - 3} x2={W} y2={H - 3} class="fb-base" vector-effect="non-scaling-stroke"></line>
+          <path d={path('spend')} class="fb-line fb-line--spend" vector-effect="non-scaling-stroke"></path>
+          <path d={path('rev')} class="fb-line fb-line--rev" vector-effect="non-scaling-stroke"></path>
+        </svg>
+      </figure>
+    )}
+  </div>
+
+  <details class="fb-more">
+    <summary>Campaigns and how this is counted</summary>
+    {r.campaigns.length > 0 ? (
+      <ul class="fb-camps">
+        {r.campaigns.map((c) => (
+          <li><span>{c.campaign}</span> <em>{c.prospecting ? 'prospecting' : 'retargeting'}</em> <b>{eur(c.eurMinor)}</b></li>
+        ))}
+      </ul>
+    ) : (
+      <p>No campaign with “Forgiveness” in its name has spent yet. One that does is picked up here by itself, the day Meta reports its spend.</p>
+    )}
+    <p>
+      A campaign counts as the course’s when its name carries <strong>Forgiveness</strong>. Its money is charged to no workshop or masterclass seat; it stays in the total ad spend and blended ROAS below.
+      ROAS and profit count <strong>every</strong> sale of the course, from the ads or not: nothing on an order says where the buyer came from, so emails and word of mouth are in here too.
+      Revenue is net of VAT, refunds off, with the ASJ and Grief order bumps bought on its checkout. Profit is after ad spend only.
+    </p>
+  </details>
+</section>
+
+<style>
+  .fb {
+    --fb-surface: var(--adm-paper-soft, #fbf6ea);
+    --fb-ink: var(--adm-ink, #2b2519);
+    --fb-ink-soft: var(--adm-ink-soft, #6f6757);
+    --fb-mute: var(--adm-mute, #9a8e75);
+    --fb-line: var(--adm-line, #e3dac4);
+    --fb-link: var(--adm-ember-deep, #9d3f1f);
+    --fb-accent: #6b3a5e; /* plum — the course page's own colour */
+    --fb-good: #2f7a4c;
+    --fb-mid: #a8661a;
+    --fb-bad: #b53d3d;
+    --fb-rev: #2f7a4c;
+    --fb-spend: #c9603a;
+    background: var(--fb-surface);
+    border: 1px solid var(--fb-line);
+    border-top: 3px solid var(--fb-accent);
+    border-radius: 12px;
+    padding: 16px 18px 12px;
+    margin: 0 0 22px;
+    color: var(--fb-ink);
+  }
+  .fb a { color: var(--fb-link); }
+  .fb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .fb-kicker { margin: 0 0 2px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fb-accent); font-weight: 600; }
+  .fb-title { margin: 0; font-size: 19px; font-weight: 640; letter-spacing: -0.01em; color: var(--fb-ink); }
+  .fb-sub { margin: 3px 0 0; font-size: 12.5px; color: var(--fb-ink-soft); }
+  .fb-roas { display: flex; align-items: center; gap: 10px; }
+  .fb-roas b { font-size: 34px; font-weight: 680; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .fb-roas span { font-size: 10.5px; color: var(--fb-mute); line-height: 1.35; }
+
+  .fb-figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 18px; margin: 16px 0 0; }
+  .fb-fig { display: flex; flex-direction: column; min-width: 0; }
+  .fb-fig span { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fb-mute); }
+  .fb-fig b { font-size: 23px; font-weight: 640; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; margin-top: 2px; color: var(--fb-ink); }
+  .fb-fig em { font-style: normal; font-size: 11.5px; color: var(--fb-mute); margin-top: 2px; line-height: 1.4; }
+  .fb-fig b.fb-t-good, .fb-t-good { color: var(--fb-good); }
+  .fb-fig b.fb-t-bad, .fb-t-bad { color: var(--fb-bad); }
+  .fb-t-mid { color: var(--fb-mid); }
+  .fb-t-flat { color: var(--fb-ink); }
+
+  .fb-goal { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--fb-line); font-size: 13px; line-height: 1.5; color: var(--fb-ink-soft); }
+  .fb-goal strong { color: var(--fb-ink); }
+
+  .fb-lower { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 12px; align-items: start; }
+  @media (max-width: 760px) { .fb-lower { grid-template-columns: minmax(0, 1fr); } }
+  .fb-tablewrap { min-width: 0; overflow-x: auto; }
+  .fb-table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .fb-table th, .fb-table td { padding: 5px 5px; border-bottom: 1px solid var(--fb-line); text-align: left; white-space: nowrap; }
+  .fb-table thead th { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fb-mute); }
+  .fb-table tbody th { font-weight: 600; color: var(--fb-ink-soft); }
+  .fb-table .num { text-align: right; }
+  .fb-table tbody tr:last-child th, .fb-table tbody tr:last-child td { border-bottom: 0; }
+
+  .fb-chart { margin: 0; min-width: 0; }
+  .fb-chart figcaption { font-size: 11.5px; color: var(--fb-ink-soft); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 4px; }
+  .fb-chart-note { color: var(--fb-mute); margin-left: auto; }
+  .fb-key { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-left: 6px; }
+  .fb-key:first-child { margin-left: 0; }
+  .fb-key--rev { background: var(--fb-rev); }
+  .fb-key--spend { background: var(--fb-spend); }
+  .fb-chart svg { display: block; width: 100%; height: 96px; }
+  .fb-base { stroke: var(--fb-line); stroke-width: 1; }
+  .fb-line { fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
+  .fb-line--rev { stroke: var(--fb-rev); }
+  .fb-line--spend { stroke: var(--fb-spend); stroke-dasharray: 5 3; }
+
+  .fb-more { margin-top: 10px; font-size: 12.5px; color: var(--fb-ink-soft); }
+  .fb-more summary { cursor: pointer; color: var(--fb-mute); font-size: 12px; }
+  .fb-more p { margin: 8px 0 4px; line-height: 1.5; }
+  .fb-camps { list-style: none; margin: 8px 0 0; padding: 0; }
+  .fb-camps li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; border-bottom: 1px solid var(--fb-line); }
+  .fb-camps li span { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--fb-ink); }
+  .fb-camps li em { font-style: normal; color: var(--fb-mute); font-size: 11px; }
+  .fb-camps li b { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--fb-ink); }
+</style>
