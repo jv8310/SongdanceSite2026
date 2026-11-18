@@ -11,9 +11,9 @@
 - Keep it on **songdance.co**, where the retreat intake, the Claude assessment and the admin pages
   already are. The app opens the form and only remembers whether the course may open. Health
   answers never enter an app table, a Claude connector, Drip or an email.
-- A course opens **straight away** for most people. It waits for a conversation with you only on a
-  few of the person's own answers. Claude's reading runs behind every intake and can **alert** you;
-  it never closes a door by itself.
+- A course opens **straight away** for most people, on their own ticks. Nobody starting a course
+  waits for a call from you. A red flag reaches you as an email, and you decide whether to call.
+  Claude's reading runs behind every intake and can **alert** you; it never closes a door by itself.
 - Three things need your decision before anything is built: how strict the gate is (section 4), what
   a "no" costs the buyer (section 5), and what happens with the people already inside (section 8).
 - A legal adviser should read this before launch. Section 10 lists what to ask.
@@ -90,7 +90,7 @@ In plain words, four things are kept, all on the site:
   so you can see what changed.
 - **Claude's reading** of a version, and your own note and decision.
 - **What each course or retreat needs from them and where it stands**: not needed / waiting /
-  open / conversation first / not now.
+  open / waiting for their tick / red flag to read / not now.
 
 The existing retreat submissions are brought in as first versions, so nothing is lost and the
 people who filled one in for Dolphin & Sound or Ritual of Belonging are not asked again from zero.
@@ -146,34 +146,36 @@ more than you need, and the law asks you to collect no more than you need (secti
 
 ## 4. What happens after they press send (decision 2)
 
-The member sees one of two things. Claude's reading comes on top of either.
+*Revised on 18 November after Jacob's answer: no calls for people starting the 12-week course,
+except perhaps on a red flag.*
+
+For a course, nobody waits for a call. The member's own ticks open the course.
 
 | The member sees | When | For you |
 | --- | --- | --- |
-| **"You're in."** The course opens at once. | Nothing ticked in question 3; or something ticked and they have discussed it with their therapist or doctor | Nothing, unless Claude raises it |
-| **"Jacob would like to speak with you first."** The course waits. They read that you will call or write within a stated number of working days, and what to do if they are in crisis now. | They ticked thoughts of ending their life; or they ticked a diagnosis, dissociation or medication and have **not** discussed it, or have no therapist or doctor | An email at once (section 6); the row on the admin page with Open the course / Open with a note / Not now |
+| **"You're in."** The course opens at once. | Nothing ticked in question 3; or something ticked and they tick that they have discussed the course with their therapist or doctor | Nothing, unless Claude raises it |
+| **"One thing first."** The course waits until they come back and tick it. | Something ticked in question 3, and they have not yet discussed it, or have no therapist or doctor | Nothing. No call. The screen asks them to talk it through with their therapist or doctor first, says their place is kept, and that they can have their money back if they would rather not start. |
+| **A red flag** | They tick thoughts of ending their life; or Claude's reading of the whole intake comes back as a red flag | An email at once (section 6). You decide whether to call or write. |
 
-**Claude's reading** runs behind every intake, as for the retreats. When it comes back as a red
-flag, you get the email, whatever the member saw. It does not close a course that already opened;
-it tells you to look. That keeps the promise the privacy policy already makes ("decisions about
-participation are always made by a person, never by the system"), and it is what data-protection
-law expects of a decision this weighty.
+**Claude's reading** runs behind every intake, as for the retreats. It can alert you; it never
+closes a course by itself. That keeps the promise the privacy policy already makes ("decisions
+about participation are always made by a person, never by the system"), and it is what
+data-protection law expects of a decision this weighty.
 
-Three ways to set the dial:
+What is left to decide:
 
-- **A. Soft.** Everyone who completes the form gets in. Flags only alert you. Least friction,
-  least protection: the person you are worried about is already inside when you read the email.
-- **B. As above (recommended).** A short, fixed list of the person's own answers makes the course
-  wait. Predictable for the member, and you only make calls where it matters.
-- **C. Strict.** Any tick in question 3 makes the course wait until you clear it. Being in therapy
-  or on an antidepressant is common among your students and is no reason to wait; this would put
-  a large share of buyers in your call queue and tell people with good support that they are a
-  problem.
-
-One consequence of your own rule to think through: "they must tick that they've discussed it with
-their therapist or doctor". Someone with a diagnosis and no therapist cannot truthfully tick it.
-In B they are not turned away; they go to a conversation with you. If you would rather they simply
-cannot start, say so and the wording changes.
+- **Does a red flag hold the course?** Recommended: the tick "thoughts of ending my life" holds it
+  until you have looked, because that is the person's own statement and the one case where
+  starting alone with a recording is the wrong next step. A red flag that comes only from Claude's
+  reading does not hold anything; it reaches you as an email and you decide.
+- **Someone with a diagnosis and no therapist or doctor** cannot truthfully tick "I have
+  discussed this". With no calls, the honest outcome is that they do not start until they have
+  someone to discuss it with, and get their money back if they ask. If you would rather let them
+  in on a different tick ("I have no professional support at the moment and I take this course on
+  my own responsibility"), say so; I would not recommend it for the diagnoses named in question 3.
+- **The same for every course?** You spoke of the 12-week course. I have assumed the same for
+  the certification course, Grief, Forgiveness and Inner Child, and that calls stay with the
+  retreats.
 
 ## 5. What a "not now" costs the buyer (decision 3)
 
@@ -196,8 +198,8 @@ we both feel this isn't the moment, you get your money back."*
 
 ## 6. The email to you
 
-- **When**: a course that waits (the member's own answers), or a red flag from Claude, for a
-  course or a retreat. Sent from wherever the assessment finishes, so the hourly catch-up sends it
+- **When**: a red flag, for a course or a retreat: the member's own tick, or Claude's reading.
+  A course that merely waits for the member's "I have discussed this" tick sends you nothing. Sent from wherever the assessment finishes, so the hourly catch-up sends it
   too, and exactly once.
 - **To**: jacob@songdance.co. Say if Karen Evans or anyone else should get a copy for their courses.
 - **What it says**: who, their phone number and address, which course or retreat, what raised it
@@ -206,10 +208,10 @@ we both feel this isn't the moment, you get your money back."*
   I recommend moving both to "name, phone, reason, link": a mailbox is the place health data
   leaks from. If you prefer reading the full intake in your inbox, that can stay; it is your
   decision and belongs in the privacy policy either way (decision 4).
-- **A morning line in the daily report** when anything has been waiting more than two working days,
-  so a hold never sits forgotten while someone who paid waits.
+- **A morning line in the daily report** while a red flag is still unread after two working days,
+  so it never sits forgotten.
 
-Who may open a course besides you, for the weeks you are on retreat (decision 5)?
+Who reads the red flags besides you, for the weeks you are on retreat (decision 5)?
 
 ## 7. Where it sits in the app
 
@@ -218,7 +220,7 @@ Who may open a course besides you, for the weeks you are on retreat (decision 5)
   "Submit for certification" opens the certification form today.
 - Until it is done, that course's classes, files, course space and live sessions stay closed. The
   general CiRCLE, their other courses and anything free stay as they are.
-- The site tells the app one word per course: waiting / open / conversation first. The app keeps
+- The site tells the app one word per course: waiting / open / held for a red flag. The app keeps
   nothing else. This is the certification form's arrangement, reused.
 - The acknowledgment is repeated once in the course's welcome steps, as the brief asks.
 
@@ -367,8 +369,9 @@ realistically cannot, and its buyers so far bought without one.
 1. **Which products get the course intake.** Recommended: 12-week, certification and path, German
    12-week, Grief, Forgiveness, Inner Child. Workshops, masterclass, journeys, albums and the live
    pass: acknowledgment only.
-2. **How strict the gate is**: A, B or C in section 4, and what happens to someone with a
-   diagnosis and no therapist.
+2. **The gate** (section 4, revised): whether a red flag holds the course, what happens to
+   someone with a diagnosis and no therapist or doctor, and whether the certification course,
+   Grief, Forgiveness and Inner Child follow the 12-week course in having no calls.
 3. **Refunds on "not now"**, for courses and for retreats, and when the 30 days start.
 4. **The email**: name, phone, reason and link only (recommended), or the full intake as today.
 5. **Who reads and who may open a course** besides you: Karen Evans, Daniela Hess, Lorenz and
@@ -376,6 +379,6 @@ realistically cannot, and its buyers so far bought without one.
 6. **Existing members**: acknowledgment for all and an invitation (recommended), or intake
    required for live sessions from a date.
 7. **How long answers are kept.**
-8. **How many working days** you promise for a call, and who covers when you are away.
-9. **Private sessions**: whether the "conversation first" screen and the course pages may point
+8. **Red flags while you are away**: who reads them, and within how many working days.
+9. **Private sessions**: whether the "one thing first" screen and the course pages may point
    to `/sessions` for people whose main need is personal support.

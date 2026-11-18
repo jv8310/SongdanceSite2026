@@ -115,8 +115,10 @@ about first.
 Jacob and the facilitators of your course read your answers. Nobody else does. A tool helps them
 read carefully; a person decides.
 
-Most people are in straight away. Sometimes Jacob will call you first. Sometimes we will both see
-that this is not the moment. **[the refund sentence, once decided]**
+For a course, most people are in straight away. If you ticked something we ask you to discuss
+with your therapist or doctor, the course waits until you have. Before a retreat, Jacob speaks
+with every guest. Sometimes we will both see that this is not the moment. **[the refund sentence,
+once decided]**
 
 You can see, change or delete your answers at any time. More in our privacy policy.
 

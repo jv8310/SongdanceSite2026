@@ -32,8 +32,8 @@ sensations, life situations … or simply a wish to listen and be held by the gr
 *"Where students bring what came up in a practice session and want to look at it together"*
 (A3). The live pass: *"whatever came up in your practice"* (A4). The deepening sessions:
 *"experiences that need more space"* (A5), and in the app *"what the last one opened, what to
-bring to the next"* (D2). The Q&A email is Drip's own text with two words changed, so Drip is
-probably sending the original today.
+bring to the next"* (D2). Drip no longer sends course email (Jacob, 18 November), so this is the text
+every new student receives.
 
 **2. Practice Together is worded as receiving a session.** *"To give and receive"* in eight places
 on the site and three emails (A8 to A13, B44); *"To receive a session."* in the app in all five
@@ -101,7 +101,7 @@ the English pages gained since.
 In this order, if you approve them:
 
 1. **Forgiveness email #21** (C30). It goes out on 3 December.
-2. **The Q&A explainer** in the day-1 emails (A1, A2), and the same text in Drip.
+2. **The Q&A explainer** in the day-1 emails (A1, A2).
 3. **Inner Child**: the 1:1 offer (C1, C2) and the lesson texts (E1 to E6).
 4. **The two certification testimonials** (Karen Evans, the migraine) and "Dr. Karen" on the
    workshop and masterclass pages.
@@ -185,8 +185,8 @@ These come before the rewrites, because the rewrites depend on them.
 
 - **The SVH AI.** It belongs to the practice app at app.songdance.co, which is another codebase
   and is not in either repository here. Its system prompt and canned answers are unread.
-- **Drip.** The workflows and rules that still send most course emails. Where the site's version
-  is an adaptation of Drip's, the original is probably live.
+- **Drip.** It no longer sends course email (Jacob, 18 November), so the site's emails in parts A
+  to C are what students receive. Drip's old workflows were not read.
 - **Texts kept in the site's database**: workshop titles, event cards, album descriptions, and
   the stored drafts of broadcasts #16 to #22 (their source files were read).
 - **The app's other courses**: the Authentic Singing Journey and its Dutch edition, Magical
@@ -194,7 +194,8 @@ These come before the rewrites, because the rewrites depend on them.
   of single sessions on the calendar.
 - **Video and audio**: the workshop and masterclass films, the retreat film on the 12-week page,
   Upala's clip on the Inner Child page, and the classes themselves.
-- **The class manuals** (PDF) and the certificate.
+- **The class manuals** (PDF): being read and corrected separately, see `manual_changes.md` once it
+  is in this folder. The certificate itself was not read.
 - **The ad creative.** The Heal the Healer ads are known to say "release it"; the page does not.
 - **External forms**: ThriveCart (German 12-week) and `register.songdance.co` (German workshop).
 - **Out of scope**: `/speelwijs` (a page built for another organisation) and `/sr26` (a
@@ -375,7 +376,7 @@ No other languages in this slice.
 
 1. **What the certification page says graduates may do with clients.** It says the course leads "to opening your own practice" (`CCName.astro:18`) and that the certificate is "the door — into your own practice" (`CCCertification.astro:32`); that students become "a certified practitioner" (`CCCertification.astro:27`, `svh-cert-classes.ts:116`); that the certificate "isn't permission. It's a record that you walked the path" (`CCCertification.astro:38-40`); that certification requires "A real session, with a real person" (`CCCertification.astro:19`), which the form calls "a Somatic Vocal Healing session with a client" (`apply.astro:194`); and, as the only limit, "it is not a comprehensive training to become a therapist, coach, or psychologist… If you intend to work with clients professionally, you should already have a background in holding space and navigating emotional processes." (`CCForWhom.astro:52-56`). It never says a graduate is a space holder and not a therapist, and it never repeats copy-book chapter 47 ("in a therapeutic setting it is only ever used alongside a training in therapeutic skills"). The "certified" email (`src/lib/certification/emails.ts:59-100`) and the certificate itself say nothing about scope. Jacob's decision: should the page, the email and perhaps the certificate carry one sentence on scope?
 2. **Is Practice Together really pairs giving each other full sessions?** If yes, "give and receive" is accurate and the question is only how to frame it (practice in facilitation, not a session one is owed). The rewrites in A8 to A13 assume that framing.
-3. **Are the site's course emails live yet?** `handover.ts` keeps each course's emails off until switched on, and Drip sends its own versions until then. The Q&A explainer (A1, A2) is "the Drip Q&A explainer, with one word changed" (`sequence-emails.ts:167-168`), so the same text, with "release" and "emerge and resolve" still in it, is presumably what Drip sends 12-week buyers today. It would need the same fix in the Drip workflow `prod_SVH_12w`. I did not read Drip.
+3. **Are the site's course emails live yet?** `handover.ts` keeps each course's emails off until switched on, and Drip sends its own versions until then. The Q&A explainer (A1, A2) is "the Drip Q&A explainer, with one word changed" (`sequence-emails.ts:167-168`), so the same text, with "release" and "emerge and resolve" still in it, is presumably what Drip sends 12-week buyers today. It would need the same fix in the Drip workflow `prod_SVH_12w`. I did not read Drip. *Answered by Jacob on 18 November: Drip no longer sends email, so these are the live texts.*
 4. **Two different things are called "deepening sessions".** In the 12-week course they are six recorded lessons ("six main classes and six deepening sessions", `confirmation-emails.ts:189`, `sequence-emails.ts:243`); in the certification course and the live pass they are the monthly live two-hour gatherings (formerly CEEE). A 12-week student who reads "deepening sessions" on the live-pass page may expect something else. "CEEE" itself appears nowhere in the visible copy of this slice.
 5. **Lorenz's title.** "Somatischer Therapeut" may be his real profession. The rewrite in A17 needs his own wording; I did not invent one.
 6. **Is the German page still on sale?** It says "Start: 10. Mai 2026" (`SGHero.astro:26`, `SGFAQ.astro:33`), the countdown has run out (`SGNav.astro:30`), and it still offers a "Frühbucherrabatt" (`SGRegister.astro:26`). It is in the sitemap and `/svh-german` redirects to it. If the course is over, taking the page down removes four HIGH findings at once.
