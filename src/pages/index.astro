@@ -10,11 +10,20 @@ import RetreatBand from '../components/RetreatBand.astro';
 import SongdeckBand from '../components/SongdeckBand.astro';
 import Upcoming from '../components/Upcoming.astro';
 import ForgivenessBand from '../components/ForgivenessBand.astro';
+import SoundSignatures from '../components/sound/SoundSignatures.astro';
 ---
 
 <SiteLayout>
   <Hero />
   <WorkBlock />
+  <!-- The answer to WorkBlock's question, drawn: the page's first dark moment. -->
+  <SoundSignatures
+    tone="plum"
+    eyebrow="Reading the sound"
+    heading="Patterns you can <em>hear</em>"
+    link={{ href: '/what-is-svh#map', label: 'There is a map →' }}
+    revealAttrs={{ 'data-anim': 'reveal' }}
+  />
   <LyricBreak />
   <OfferingsGrid />
   <ForgivenessBand />

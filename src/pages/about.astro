@@ -5,6 +5,8 @@ import { blogPostsByDateAsc } from '../data/blog';
 
 // The origin-story series, oldest → newest (part one → the latest chapter).
 const journalPosts = blogPostsByDateAsc;
+const PART_WORDS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+const journalParts = PART_WORDS[journalPosts.length] ?? String(journalPosts.length);
 const partWords = ['one', 'two', 'three', 'four', 'five', 'six'];
 ---
 
@@ -81,7 +83,7 @@ const partWords = ['one', 'two', 'three', 'four', 'five', 'six'];
   <section class="sd-section sd-about-journal">
     <div class="sd-about-journal-inner">
       <div class="sd-eyebrow">The story behind it</div>
-      <h2 class="sd-about-journal-title">How it all began — in three parts.</h2>
+      <h2 class="sd-about-journal-title">How it all began — in {journalParts} parts.</h2>
       <p class="sd-about-journal-lede">
         The longer version — Upala, the journeys we made together, and what grew from the loss —
         lives in the Journal.

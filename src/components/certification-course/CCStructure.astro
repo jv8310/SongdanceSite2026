@@ -1,4 +1,22 @@
 ---
+// "How the work lives in time": the deck's certification timeline above the
+// six cards — one bar in two segments (the 12-week foundation, then the nine
+// months), a tick for every weekly Q&A, a dot for every monthly deepening
+// session. The lengths come from cert-access.ts, never typed in here.
+import { CERT_ACCESS_MONTHS, FOUNDATION_WEEKS } from '../../lib/courses/cert-access';
+
+const certWeeks = Math.round((CERT_ACCESS_MONTHS * 52) / 12);
+const totalWeeks = FOUNDATION_WEEKS + certWeeks;
+const pct = (x: number) => `${((x / totalWeeks) * 100).toFixed(3)}%`;
+const ticks = Array.from({ length: totalWeeks }, (_, i) => pct(i + 0.5));
+const dots = Array.from({ length: CERT_ACCESS_MONTHS }, (_, k) =>
+  pct(FOUNDATION_WEEKS + (certWeeks / CERT_ACCESS_MONTHS) * (k + 0.5)),
+);
+const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const word = (n: number) => NUM[n] ?? String(n);
+const monthsWord = word(CERT_ACCESS_MONTHS);
+const tlLabel = `Timeline: the ${FOUNDATION_WEEKS}-week course, then ${monthsWord} months of the certification course, with a live Q&A every week and a live deepening session every month of the ${monthsWord} months.`;
+
 const stanzas = [
   {
     title: 'Self-paced classes, instant access',
@@ -35,6 +53,36 @@ const stanzas = [
         How the work <em>lives in time.</em>
       </h2>
     </div>
+    <div class="cc-tl" role="img" aria-label={tlLabel} data-cc-motion>
+      <div class="cc-tl-top" aria-hidden="true">
+        <div style={`flex:${FOUNDATION_WEEKS}`}>
+          <b>The {FOUNDATION_WEEKS}-week course</b>
+          <span>The foundation · a live Q&amp;A every week</span>
+        </div>
+        <div style={`flex:${certWeeks}`}>
+          <b>{monthsWord[0].toUpperCase() + monthsWord.slice(1)} months, the modules</b>
+          <span>At your own pace · a weekly Q&amp;A · a monthly deepening session</span>
+        </div>
+      </div>
+      <div class="cc-tl-track" aria-hidden="true">
+        <div class="cc-tl-bar">
+          <i class="s1" style={`flex:${FOUNDATION_WEEKS}`}></i>
+          <i class="s2" style={`flex:${certWeeks}`}></i>
+        </div>
+        <div class="cc-tl-dots">
+          {dots.map((left, k) => <i style={`left:${left};--k:${k}`}></i>)}
+        </div>
+      </div>
+      <div class="cc-tl-ticks" aria-hidden="true">
+        {ticks.map((left, k) => <i style={`left:${left};--k:${k}`}></i>)}
+      </div>
+      <div class="cc-tl-legend" aria-hidden="true">
+        <span><i class="lg-tick"></i>Live Q&amp;A, one hour, every week</span>
+        <span><i class="lg-dot"></i>Live deepening, two hours, every month</span>
+        <span class="cc-tl-end">The {monthsWord} months start the day you join — or when your {FOUNDATION_WEEKS} weeks end</span>
+      </div>
+    </div>
+
     <div class="cc-structure-grid">
       {stanzas.map((s) => (
         <article class="cc-stanza">
@@ -54,3 +102,18 @@ const stanzas = [
     </figure>
   </div>
 </section>
+
+<script>
+  // Grow the bar, then the ticks and the dots, once the timeline is reached.
+  // Without JavaScript, or with reduced motion, it is simply there.
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+    const els = document.querySelectorAll<HTMLElement>('.cc-tl[data-cc-motion]');
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); }
+      }),
+      { rootMargin: '0px 0px -15% 0px' },
+    );
+    els.forEach((el) => { el.classList.add('is-waiting'); io.observe(el); });
+  }
+</script>

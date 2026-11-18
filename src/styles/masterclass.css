@@ -416,3 +416,31 @@
   .mc-faq-item summary { font-size: 17px; padding: 16px 0; }
   .mc-hero-next { font-size: 13px; padding: 8px 14px; }
 }
+
+/* ---- The four sound signatures, under "What the 100 minutes hold" ----
+   (MCWhat; the waves themselves are the shared kit in site.css) */
+.mc-sig-panel {
+  margin: var(--sp-8) 0 0;
+  padding: var(--sp-8) var(--sp-7) var(--sp-7);
+  border-radius: var(--r-lg);
+  background: var(--night);
+  color: var(--paper);
+}
+.mc-sig-head { max-width: 620px; margin: 0 auto var(--sp-7); text-align: center; }
+.mc-sig-eyebrow {
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.22em; color: var(--ember-soft);
+}
+.mc-sig-title {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(28px, 3.2vw, 40px); line-height: 1.12; letter-spacing: -0.012em;
+  color: var(--paper); margin: var(--sp-3) 0 0;
+}
+.mc-sig-title em { font-family: var(--font-lyric); font-style: italic; font-size: 1.05em; color: var(--ember-lift); }
+.mc-sig-lede {
+  font-size: var(--t-body); line-height: var(--lh-prose);
+  color: rgba(244, 236, 223, 0.76); margin: var(--sp-4) auto 0; max-width: 52ch;
+}
+@media (max-width: 720px) {
+  .mc-sig-panel { padding: var(--sp-7) var(--sp-5) var(--sp-6); border-radius: var(--r-md); }
+}
