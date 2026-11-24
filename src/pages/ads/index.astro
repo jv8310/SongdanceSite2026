@@ -75,7 +75,12 @@ const excludeFuture = Astro.url.searchParams.has(FUTURE_COSTS_PARAM)
   : true;
 const d = await computeAdsDashboard(env.DB, { from, to, money, excludeFutureEvents: excludeFuture });
 // The Forgiveness Course against its own campaigns — the box at the top.
-const forgiveness = await computeForgivenessReport(env.DB, { from, to, money });
+const forgiveness = await computeForgivenessReport(env.DB, {
+  from, to, money,
+  drip: env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID
+    ? { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID }
+    : null,
+});
 const cmp = compare && cmpFrom && cmpTo
   ? await computeAdsDashboard(env.DB, {
       from: cmpFrom, to: cmpTo, money, excludeFutureEvents: excludeFuture,

@@ -16,6 +16,11 @@
 // ROAS here is all of the course's sales ÷ its ad spend. Nothing on an order
 // says whether it came from an ad, a broadcast or word of mouth, so this is the
 // blended figure, and the box says so. Profit is after ad spend only.
+//
+// New vs returning customers (forgiveness-buyers.ts): every order is read
+// against the buyer's earlier orders on the site and their product tags in
+// Drip. The ads' job is the new ones, so the box also prints ad spend per new
+// customer — all of the spend over the new customers, whoever the ads reached.
 
 import { isAcquisitionCampaign, isForgivenessCampaign } from './campaigns';
 import {
@@ -25,6 +30,8 @@ import {
   type MoneyOpts,
 } from '../workshops/stats';
 import { brusselsToday, shiftDays } from '../workshops/periods';
+import { classifyForgivenessBuyers, type BuyerVerdict } from './forgiveness-buyers';
+import type { DripConfig } from '../registrations/drip';
 import {
   FORGIVENESS_PRODUCT_SLUG,
   FORGIVENESS_SESSIONS,
@@ -49,6 +56,15 @@ export type ForgivenessFigures = {
   avgOrderEurMinor: number | null; // revenue ÷ sales
   // >0 = revenue still needed to reach ROAS_TARGET on this spend; ≤0 = past it.
   gapToTargetEurMinor: number | null;
+  // New vs returning customers. Counts are of `sales`; the two revenues add up
+  // to `revenueEurMinor`.
+  newSales: number;
+  newOnListSales: number; // of newSales: already on the email list before
+  newRevenueEurMinor: number;
+  returningSales: number;
+  returningViaDripSales: number; // of returningSales: known from Drip's tags only
+  returningRevenueEurMinor: number;
+  costPerNewCustomerEurMinor: number | null; // ad spend ÷ new customers
 };
 
 export type ForgivenessDay = {
@@ -75,26 +91,47 @@ export type ForgivenessReport = {
   windowFrom: string | null;
   windowTo: string | null;
   campaigns: Array<{ campaign: string; eurMinor: number; prospecting: boolean }>; // whole run
+  // Orders whose buyer Drip could not be asked about (yet): read on the site's
+  // own data and the contact list alone.
+  dripUnread: number;
   days: ForgivenessDay[]; // runFrom → today, every day
 };
 
 type SpendRow = { spend_date: string; campaign: string; eur: number };
 
-function figures(orders: CourseProductOrder[], spend: SpendRow[]): ForgivenessFigures {
+type Order = CourseProductOrder & { buyer: BuyerVerdict };
+
+function figures(orders: Order[], spend: SpendRow[]): ForgivenessFigures {
   let sales = 0;
   let free = 0;
   let refunded = 0;
   let courseEurMinor = 0;
   let bumpsEurMinor = 0;
   let bumpCount = 0;
+  let newSales = 0;
+  let newOnListSales = 0;
+  let newRevenueEurMinor = 0;
+  let returningSales = 0;
+  let returningViaDripSales = 0;
+  let returningRevenueEurMinor = 0;
   for (const o of orders) {
     courseEurMinor += o.courseEurMinor;
     bumpsEurMinor += o.bumpsEurMinor;
+    const isNew = o.buyer.kind === 'new';
+    if (isNew) newRevenueEurMinor += o.courseEurMinor + o.bumpsEurMinor;
+    else returningRevenueEurMinor += o.courseEurMinor + o.bumpsEurMinor;
     if (o.refunded) refunded += 1;
     else if (o.free) free += 1;
     else {
       sales += 1;
       bumpCount += o.bumpCount;
+      if (isNew) {
+        newSales += 1;
+        if (o.buyer.onList) newOnListSales += 1;
+      } else {
+        returningSales += 1;
+        if (o.buyer.via === 'drip') returningViaDripSales += 1;
+      }
     }
   }
   let spendEurMinor = 0;
@@ -120,6 +157,14 @@ function figures(orders: CourseProductOrder[], spend: SpendRow[]): ForgivenessFi
     costPerSaleEurMinor: spendEurMinor > 0 && sales > 0 ? Math.round(spendEurMinor / sales) : null,
     avgOrderEurMinor: sales > 0 ? Math.round(revenueEurMinor / sales) : null,
     gapToTargetEurMinor: spendEurMinor > 0 ? ROAS_TARGET * spendEurMinor - revenueEurMinor : null,
+    newSales,
+    newOnListSales,
+    newRevenueEurMinor,
+    returningSales,
+    returningViaDripSales,
+    returningRevenueEurMinor,
+    costPerNewCustomerEurMinor:
+      spendEurMinor > 0 && newSales > 0 ? Math.round(spendEurMinor / newSales) : null,
   };
 }
 
@@ -128,13 +173,21 @@ const inRange = (day: string, from: string | null, to: string | null) =>
 
 export async function computeForgivenessReport(
   db: D1Database,
-  opts: { from?: string | null; to?: string | null; money?: MoneyOpts; nowMs?: number } = {},
+  opts: {
+    from?: string | null;
+    to?: string | null;
+    money?: MoneyOpts;
+    nowMs?: number;
+    // Drip credentials, for the new / returning split. Without them the split
+    // rests on the site's orders and the contact list.
+    drip?: DripConfig | null;
+  } = {},
 ): Promise<ForgivenessReport> {
   const nowMs = opts.nowMs ?? Date.now();
   const from = opts.from ?? null;
   const to = opts.to ?? null;
 
-  const [orders, spendRes] = await Promise.all([
+  const [plainOrders, spendRes] = await Promise.all([
     computeCourseProductOrders(db, FORGIVENESS_PRODUCT_SLUG, { money: opts.money }),
     // LIKE narrows the read (case-insensitive for ASCII in SQLite); the JS test
     // below is the rule, the same one that keeps these euros off the workshops.
@@ -152,6 +205,12 @@ export async function computeForgivenessReport(
       campaign: (a.campaign ?? '').trim(),
       eur: a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0),
     }));
+
+  const buyers = await classifyForgivenessBuyers(db, plainOrders, { drip: opts.drip });
+  const orders: Order[] = plainOrders.map((o) => ({
+    ...o,
+    buyer: buyers.verdicts.get(o.id) ?? { kind: 'new', via: null, onList: false },
+  }));
 
   const today = brusselsToday();
   const weekFrom = shiftDays(today, -6);
@@ -223,6 +282,7 @@ export async function computeForgivenessReport(
     windowFrom: from,
     windowTo: to,
     campaigns,
+    dripUnread: buyers.dripUnread,
     days,
   };
 }

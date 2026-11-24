@@ -420,6 +420,15 @@ announcement follow.
   whatever period the page shows. ROAS counts every sale of the course, ads or not — no order says
   where its buyer came from. The box shows while registration is open, afterwards only on a period
   that saw it sell or spend. Keep the word in the campaign name or the spend lands on the workshops.
+  **New vs returning customers** (24 Nov 2026, [`forgiveness-buyers.ts`](src/lib/ads/forgiveness-buyers.ts)):
+  the box splits the sales, with revenue each, ad spend per new customer and a "New · ret." column
+  on the period rows. Returning = before this order the address had a paid order on the site (course,
+  pass, album, session, a paid workshop / masterclass seat, a retreat) **or** holds a product tag
+  (`prod_…`, `prodG_…`, `client`, `klant`; never a `…_free` one) in Drip or on the contact list that
+  none of their own site orders explains (bought before the site took payments). New customers are
+  also told apart by whether the email list knew them a day or more before. Drip is asked once per
+  order and kept in `events` (`forgiveness-buyer-drip-<order id>`); an order Drip did not answer for
+  is read on the rest and the box says so. Free seats and free places make nobody a customer.
 
 ## Forgiveness prayer lead magnet — offline, kept for later
 

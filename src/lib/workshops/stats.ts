@@ -820,6 +820,8 @@ export async function computeCourseSales(
 // one that stands.
 
 export type CourseProductOrder = {
+  id: number;
+  email: string;
   paidAt: string; // UTC stamp
   day: string; // Brussels business day of paidAt
   courseEurMinor: number; // the course line, full value, refunds off
@@ -836,7 +838,7 @@ export async function computeCourseProductOrders(
 ): Promise<CourseProductOrder[]> {
   const res = await db
     .prepare(
-      `SELECT product_slug, amount_cents, currency, country, vat_number, payment_plan,
+      `SELECT id, email, product_slug, amount_cents, currency, country, vat_number, payment_plan,
               installments_paid, installments_total, refunded_amount_cents, paid_at,
               status, cancel_after_installment, bumps
          FROM course_registrations
@@ -844,7 +846,7 @@ export async function computeCourseProductOrders(
         ORDER BY paid_at`,
     )
     .bind(slug)
-    .all<CourseSaleRow>();
+    .all<CourseSaleRow & { id: number; email: string }>();
   const rows = res.results ?? [];
   const fxRates = opts.money?.fxRates ?? (await getFxRatesToEur(db));
   const taxRates = await resolveCourseTaxRates(rows, opts.money?.taxCfg);
@@ -854,6 +856,8 @@ export async function computeCourseProductOrders(
       (sum, b) => sum + Math.max(0, b.amount_cents), 0,
     );
     return {
+      id: r.id,
+      email: r.email,
       paidAt: r.paid_at,
       day: businessDayOf(r.paid_at),
       courseEurMinor: courseNetEur(full.courseMinor, r, taxRates, fxRates).eurMinor,
