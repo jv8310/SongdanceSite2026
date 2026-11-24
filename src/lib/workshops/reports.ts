@@ -61,6 +61,7 @@ import {
   computeWorkshopPerformance,
   computeRegistrationsByDay,
   computeUpcomingSessions,
+  computeClientMix,
   resolveMoneyOpts,
   type AudienceAcquisition,
   type MoneyOpts,
@@ -183,6 +184,19 @@ export type ReportData = {
       ticketRevenueEurMinor: number; // what those seats have taken at checkout
     } | null;
   };
+  // Sold − all ad spend: profit after ad spend only (no gateway fees, no
+  // Zoom, no time), a payment plan counted in full — the same reading as the
+  // profit line on the session cards. `cashEurMinor` = cash in − ad spend.
+  profit: { eurMinor: number; cashEurMinor: number };
+  // Who bought in the window (stats.ts computeClientMix): new = their first
+  // payment on the site falls in it, returning = they had paid before it.
+  // Sales are at full value and add up to Sold.
+  clients: {
+    newCount: number;
+    returningCount: number;
+    newSalesEurMinor: number;
+    returningSalesEurMinor: number;
+  };
   // Per day across the window (the weekly digest's table).
   daily: Array<{
     date: string;
@@ -221,6 +235,9 @@ export type ReportHeadline = {
   roas: number | null;
   workshopSeatEurMinor: number | null;
   masterclassSeatEurMinor: number | null;
+  profitEurMinor: number;
+  newClients: number;
+  returningClients: number;
 };
 
 // One window's figures; the report adds the comparison, the upcoming sessions
@@ -237,6 +254,9 @@ export function headlineOf(data: WindowData): ReportHeadline {
     roas: data.ads.roas,
     workshopSeatEurMinor: data.ads.workshopSeatEurMinor,
     masterclassSeatEurMinor: data.ads.masterclassSeatEurMinor,
+    profitEurMinor: data.profit.eurMinor,
+    newClients: data.clients.newCount,
+    returningClients: data.clients.returningCount,
   };
 }
 
@@ -336,7 +356,7 @@ async function gatherWindow(
   money?: MoneyOpts,
   opts: { economics?: boolean } = {},
 ): Promise<WindowData> {
-  const [stats, courses, cashIn, perf, ranPerf, regsByDay] = await Promise.all([
+  const [stats, courses, cashIn, perf, ranPerf, regsByDay, clientMix] = await Promise.all([
     computeStats(db, { from, to, money }),
     computeCourseSales(db, { from, to, money }),
     computeCourseCashIn(db, { from, to, money }),
@@ -345,6 +365,7 @@ async function gatherWindow(
       ? Promise.resolve(null)
       : computeWorkshopPerformance(db, { from, to, money, excludeFutureEvents: true }),
     computeRegistrationsByDay(db, { from, to }),
+    computeClientMix(db, { from, to, money }),
   ]);
   const economics = ranPerf ?? perf;
   const setAside = ranPerf?.future;
@@ -465,6 +486,13 @@ async function gatherWindow(
               ticketRevenueEurMinor: setAside.engineRevenueEurMinor,
             }
           : null,
+    },
+    profit: { eurMinor: soldTotal - spend, cashEurMinor: cashTotal - spend },
+    clients: {
+      newCount: clientMix.newClients,
+      returningCount: clientMix.returningClients,
+      newSalesEurMinor: clientMix.newSalesEurMinor,
+      returningSalesEurMinor: clientMix.returningSalesEurMinor,
     },
     daily,
   };
@@ -604,8 +632,35 @@ function headlineChanges(data: ReportData): Record<keyof ReportHeadline, Change 
     roas: c('roas'),
     workshopSeatEurMinor: c('workshopSeatEurMinor', false),
     masterclassSeatEurMinor: c('masterclassSeatEurMinor', false),
+    profitEurMinor: c('profitEurMinor'),
+    // Neither more new nor more returning clients is the bad direction.
+    newClients: c('newClients'),
+    returningClients: c('returningClients'),
   };
 }
+
+const share = (n: number, total: number) => (total > 0 ? `${Math.round((n / total) * 100)}%` : '—');
+
+// New and returning clients, as table rows — shared by the HTML and the text.
+function clientRows(data: ReportData): string[][] {
+  const c = data.clients;
+  const people = c.newCount + c.returningCount;
+  const sales = c.newSalesEurMinor + c.returningSalesEurMinor;
+  return [
+    ['New', String(c.newCount), share(c.newCount, people), eur(c.newSalesEurMinor), share(c.newSalesEurMinor, sales)],
+    [
+      'Returning',
+      String(c.returningCount),
+      share(c.returningCount, people),
+      eur(c.returningSalesEurMinor),
+      share(c.returningSalesEurMinor, sales),
+    ],
+    ['Total', String(people), '', eur(sales), ''],
+  ];
+}
+
+const CLIENTS_NOTE =
+  'A client is anyone who paid for something in this window (a workshop or masterclass seat, a course); free seats are left out. New = their first payment on the site. Returning = they had paid for a workshop, a course or a retreat before this window. Sales are at full value, so the two add up to Sold. Purchases from before the site took payments are not on record, so those buyers count as new.';
 
 function sectionLabel(text: string): string {
   return `<p style="margin:22px 0 8px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${C.faint};">${escapeHtml(text)}</p>`;
@@ -787,6 +842,37 @@ function renderReport(opts: {
       change: ch.masterclassSeatEurMinor,
     },
   ]);
+  const cl = data.clients;
+  const people = cl.newCount + cl.returningCount;
+  const clientSales = cl.newSalesEurMinor + cl.returningSalesEurMinor;
+  const profitCards = statCards([
+    {
+      label: 'Profit',
+      value: eur0(data.profit.eurMinor),
+      sub:
+        data.profit.cashEurMinor !== data.profit.eurMinor
+          ? `sold − ad spend · ${eur0(data.profit.cashEurMinor)} on cash in`
+          : 'sold − ad spend',
+      change: ch.profitEurMinor,
+    },
+    {
+      label: 'New clients',
+      value: `${cl.newCount} · ${share(cl.newCount, people)}`,
+      sub: `${eur0(cl.newSalesEurMinor)} sold · ${share(cl.newSalesEurMinor, clientSales)} of sales`,
+      change: ch.newClients,
+    },
+    {
+      label: 'Returning clients',
+      value: `${cl.returningCount} · ${share(cl.returningCount, people)}`,
+      sub: `${eur0(cl.returningSalesEurMinor)} sold · ${share(cl.returningSalesEurMinor, clientSales)} of sales`,
+      change: ch.returningClients,
+    },
+  ]);
+  const clientSection =
+    sectionLabel('Clients — new and returning') +
+    dataTable(['', 'Clients', 'Share', 'Sales', 'Share of sales'], clientRows(data), { boldLast: true }) +
+    note(CLIENTS_NOTE);
+
   const compareNote = data.previous
     ? `<p style="margin:6px 0 0;font-size:11px;color:${C.faint};">Changes compare with ${escapeHtml(
         comparedWith(data.previous),
@@ -902,8 +988,10 @@ function renderReport(opts: {
         </td></tr>
         <tr><td style="padding:16px 20px 0;">${snapshot}</td></tr>
         <tr><td style="padding:6px 20px 0;">${adEfficiency}</td></tr>
+        <tr><td style="padding:6px 20px 0;">${profitCards}</td></tr>
         <tr><td style="padding:0 26px;">
           ${compareNote}
+          ${clientSection}
           ${revenueSection}
           ${pipelineSection}
           ${econSection}
@@ -940,8 +1028,14 @@ function renderReportText(kindLabel: string, rangeLabel: string, data: ReportDat
     `Blended ROAS: ${w(roasStr(ads.roas), ch.roas)}`,
     `Workshop seat: ${w(seat(ads.workshopSeatEurMinor), ch.workshopSeatEurMinor)}`,
     `Masterclass seat: ${w(seat(ads.masterclassSeatEurMinor), ch.masterclassSeatEurMinor)}`,
+    `Profit (sold − ad spend): ${w(eur(data.profit.eurMinor), ch.profitEurMinor)} · ${eur(
+      data.profit.cashEurMinor,
+    )} on cash in`,
   );
   if (data.previous) lines.push(`(Changes compare with ${comparedWith(data.previous)}.)`);
+  lines.push('', 'CLIENTS — NEW AND RETURNING (clients · share · sales · share of sales)');
+  for (const [name, ...rest] of clientRows(data)) lines.push(`  ${name}: ${rest.filter(Boolean).join(' · ')}`);
+  lines.push(`  ${CLIENTS_NOTE}`);
   lines.push('', 'MONEY (sold · cash in)');
   for (const r of moneyRows(data)) lines.push(`  ${r.label}: ${cell(r.sold)} · ${cell(r.cash)}`);
   const toBill = stillToBillNote(data);
@@ -1318,6 +1412,8 @@ export function sampleDailyReportData(): ReportData {
         ticketRevenueEurMinor: 12726,
       },
     },
+    profit: { eurMinor: 123920, cashEurMinor: 101920 },
+    clients: { newCount: 6, returningCount: 2, newSalesEurMinor: 21820, returningSalesEurMinor: 116300 },
     daily: [
       {
         date: '2026-06-29',
@@ -1340,6 +1436,9 @@ export function sampleDailyReportData(): ReportData {
         roas: 4.87,
         workshopSeatEurMinor: 1350,
         masterclassSeatEurMinor: 2800,
+        profitEurMinor: 48700,
+        newClients: 4,
+        returningClients: 1,
       },
     },
     upcoming: [
@@ -1451,6 +1550,8 @@ export function sampleWeeklyReportData(): ReportData {
         ticketRevenueEurMinor: 50904,
       },
     },
+    profit: { eurMinor: 350410, cashEurMinor: 239400 },
+    clients: { newCount: 31, returningCount: 9, newSalesEurMinor: 148260, returningSalesEurMinor: 257550 },
     daily,
     previous: {
       from: '2026-06-15',
@@ -1465,6 +1566,9 @@ export function sampleWeeklyReportData(): ReportData {
         roas: 7.09,
         workshopSeatEurMinor: 910,
         masterclassSeatEurMinor: 2210,
+        profitEurMinor: 303100,
+        newClients: 27,
+        returningClients: 8,
       },
     },
     upcoming: [
