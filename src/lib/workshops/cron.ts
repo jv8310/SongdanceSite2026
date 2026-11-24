@@ -62,6 +62,8 @@ import {
   type Ownership,
 } from './downsell-offers';
 import { gatherBriefingData, buildBriefingEmail } from './briefing';
+import { syncTodayAdSpend } from '../ads/meta-insights';
+import { resolveMoneyOpts } from './stats';
 import { googleCalendarUrl } from './ics';
 import { formatInTz, minutesUntil, withinSendWindow } from './time';
 import { icsUrl, successUrl } from './paid-handler';
@@ -97,6 +99,15 @@ type CronEnv = {
   BRIEFING_TO?: string;
   REPORTS_TO?: string;
   ADMIN_EMAIL?: string;
+  // The briefing's price per registration: today's ad spend read from Meta
+  // just before, and course figures net of VAT like the dashboard.
+  META_AD_ACCOUNT_ID?: string;
+  META_ADS_TOKEN?: string;
+  META_ACCESS_TOKEN?: string;
+  META_API_VERSION?: string;
+  QUADERNO_API_KEY?: string;
+  QUADERNO_ACCOUNT?: string;
+  QUADERNO_SANDBOX?: string;
 };
 
 const MIN_MS = 60_000;
@@ -963,8 +974,8 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
 
 // ── Pre-workshop briefing (internal, ~5 min before) ─────────────────────────
 // An "SD-BRIEFING" ops email to Jacob just before each live session: how many
-// registered, the audience mix across the three doors, and a few signals that
-// shape the hour (practitioners present, order-bump uptake, countries). Once
+// registered, what a registration cost, the page each seat was taken on,
+// order-bump uptake and every country. Once
 // per workshop, claimed in the `events` audit log like the SD-REPORT digests.
 async function runPreWorkshopBriefing(env: CronEnv, now: number, result: CronResult) {
   // Live (non-replay) published sessions whose start is within the next
@@ -1015,7 +1026,11 @@ export async function sendWorkshopBriefing(
   }
 
   try {
-    const data = await gatherBriefingData(env.DB, w);
+    // Today's spend, so the price per registration counts the seats bought
+    // today at today's price. Throttled, timed out and never throws.
+    await syncTodayAdSpend(env).catch(() => null);
+    const money = await resolveMoneyOpts(env.DB, env).catch(() => undefined);
+    const data = await gatherBriefingData(env.DB, w, money);
     const content = buildBriefingEmail(data, env.PUBLIC_BASE_URL);
     await sendEmail({
       apiKey: env.RESEND_API_KEY!,
