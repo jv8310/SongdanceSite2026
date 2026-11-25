@@ -41,7 +41,7 @@ import {
   parseLivePassMonths,
   recordLivePassPeriod,
 } from '../../../lib/courses/live-pass';
-import { extensionRefusal, planLivePass, planMonthlyStart } from '../../../lib/courses/live-pass-plan';
+import { extensionRefusal, monthlyExtensionRefusal, planLivePass, planMonthlyStart } from '../../../lib/courses/live-pass-plan';
 
 export const prerender = false;
 
@@ -92,7 +92,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const isMonthly = payload.months === 'monthly';
     const months = parseLivePassMonths(payload.months);
     if (!months && !isMonthly) return json({ error: 'Please choose 1, 3, 6 or 12 months, or monthly.' }, 400);
-    const withExtension = !isMonthly && payload.cert_extension === true;
+    const withExtension = payload.cert_extension === true;
 
     const firstName = (payload.first_name ?? '').trim();
     const lastName = (payload.last_name ?? '').trim();
@@ -116,7 +116,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     if (isMonthly) {
-      return await startMonthly(env, locals, { firstName, lastName, email, countryCode, provider });
+      return await startMonthly(env, locals, { firstName, lastName, email, countryCode, provider, withExtension });
     }
     if (!months) return json({ error: 'Please choose 1, 3, 6 or 12 months, or monthly.' }, 400);
 
@@ -302,9 +302,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
 async function startMonthly(
   env: Env,
   locals: App.Locals,
-  who: { firstName: string; lastName: string; email: string; countryCode: string; provider: 'stripe' | 'paypal' },
+  who: { firstName: string; lastName: string; email: string; countryCode: string; provider: 'stripe' | 'paypal'; withExtension: boolean },
 ): Promise<Response> {
-  const { firstName, lastName, email, countryCode, provider } = who;
+  const { firstName, lastName, email, countryCode, provider, withExtension } = who;
   if (await findRunningMonthly(env.DB, email)) {
     return json(
       {
@@ -315,15 +315,23 @@ async function startMonthly(
     );
   }
   const currency = albumCurrencyForCountry(countryCode);
-  const firstCents = livePassMonthlyFirstCents(currency);
-  const monthlyCents = livePassMonthlyRenewalCents(currency);
+  // With the certification-window extension both prices are 20% more
+  // (live-pass.ts): the subscription's own price carries it month by month.
+  const firstCents = livePassMonthlyFirstCents(currency, withExtension);
+  const monthlyCents = livePassMonthlyRenewalCents(currency, withExtension);
   const extraCents = Math.max(0, firstCents - monthlyCents);
   const slug = LIVE_PASS_MONTHLY_SLUG;
-  const label = LIVE_PASS_MONTHLY_LABEL;
+  const label = withExtension ? `${LIVE_PASS_MONTHLY_LABEL} + certification window` : LIVE_PASS_MONTHLY_LABEL;
   // The day of the first charge: today, or the day the live sessions they
   // already have end — on this site or in the member app.
-  const start = await planMonthlyStart(env, email, await planLivePass(env.DB, email));
+  const plan = await planLivePass(env.DB, email);
+  const start = await planMonthlyStart(env, email, plan);
   const startsOn = start.startsOn;
+  // The extension only for a certification student it would add something for.
+  if (withExtension) {
+    const refusal = monthlyExtensionRefusal(plan.window, startsOn);
+    if (refusal) return json({ error: refusal }, 400);
+  }
   // Charged at 09:00 Brussels on that day.
   const firstChargeMs = startsOn ? businessDayStartMs(startsOn) + 9 * 3_600_000 : null;
   const startsLabel = startsOn ? fmtDay(startsOn) : null;
@@ -345,7 +353,11 @@ async function startMonthly(
     language_choice: null,
     source_variant: 'direct',
     timezone: edgeTimezone(locals),
-    bumps: extraCents > 0 ? [{ slug: MONTHLY_FIRST_MONTH_SLUG, amount_cents: extraCents }] : [],
+    // The extension is in the monthly price itself; its €0 row marks the order.
+    bumps: [
+      ...(extraCents > 0 ? [{ slug: MONTHLY_FIRST_MONTH_SLUG, amount_cents: extraCents }] : []),
+      ...(withExtension ? [{ slug: CERT_EXTENSION_SLUG, amount_cents: 0 }] : []),
+    ],
     amount_cents: monthlyCents,
     currency,
     consent_terms: true,
@@ -357,7 +369,7 @@ async function startMonthly(
 
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
   const successPath = `${LIVE_PASS_PAGE_PATH}?welcome=monthly${startsOn ? `&starts=${startsOn}` : ''}`;
-  const cancelUrl = `${baseUrl}${LIVE_PASS_PAGE_PATH}?email=${encodeURIComponent(email)}&months=monthly#get`;
+  const cancelUrl = `${baseUrl}${LIVE_PASS_PAGE_PATH}?email=${encodeURIComponent(email)}&months=monthly${withExtension ? '&extend=1' : ''}#get`;
 
   if (provider === 'paypal') {
     const sub = await createPaypalSubscription({
@@ -393,7 +405,7 @@ async function startMonthly(
       kind: 'course.checkout.paypal.subscription.created',
       source: 'system',
       external_id: `local-course-pp-${registrationId}-monthly`,
-      payload: { course_registration_id: registrationId, subscription_id: sub.subscriptionId, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, starts_on: startsOn, covered_by: start.coveredBy },
+      payload: { course_registration_id: registrationId, subscription_id: sub.subscriptionId, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, cert_extension: withExtension, starts_on: startsOn, covered_by: start.coveredBy },
     });
     return json({ checkout_url: sub.approveUrl, course_registration_id: registrationId });
   }
@@ -461,6 +473,7 @@ async function startMonthly(
       currency,
       tax_class: 'eservice',
       ...(startsOn ? { monthly_starts_on: startsOn, first_month_extra_cents: String(extraCents) } : {}),
+      ...(withExtension ? { cert_extension: 'yes' } : {}),
     },
     idempotency_key: `${slug}-reg-${registrationId}`,
   });
@@ -471,7 +484,7 @@ async function startMonthly(
     kind: 'course.checkout.subscription.created',
     source: 'system',
     external_id: `local-course-${registrationId}-monthly`,
-    payload: { course_registration_id: registrationId, session_id: session.id, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, installments_total: 0, starts_on: startsOn, covered_by: start.coveredBy },
+    payload: { course_registration_id: registrationId, session_id: session.id, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, cert_extension: withExtension, installments_total: 0, starts_on: startsOn, covered_by: start.coveredBy },
   });
   return json({ checkout_url: session.url, course_registration_id: registrationId });
 }

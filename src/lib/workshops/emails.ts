@@ -1242,9 +1242,15 @@ export type LivePassMonthlyConfirmedCtx = {
   // (live-pass.ts, "The monthly's price"); null for a monthly at one price.
   firstMonthLabel?: string | null;
   renewsLabel: string | null; // "18 November 2026" — the next charge
+  // Taken with the certification-window extension: the window to apply for
+  // certification stays open for as long as the monthly is paid.
+  extension?: boolean;
   manageUrl: string | null;
   eventsUrl: string;
 };
+
+const MONTHLY_EXTENSION_LINE =
+  'It carries the certification window extension: your window to apply for certification stays open for as long as your monthly is paid, to the end of each month you have paid for.';
 
 export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx): EmailContent {
   const stepsDown = !!ctx.firstMonthLabel && ctx.firstMonthLabel !== ctx.priceLabel;
@@ -1266,7 +1272,8 @@ export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx):
     heading: 'Your monthly live pass is running',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">Thank you — from today your monthly live pass opens <strong>every weekly Q&amp;A and every monthly deepening session</strong> for as long as it runs.</p>
-      <p style="margin:0 0 14px;">${escapeHtml(renews)}</p>
+      <p style="margin:0 0 14px;">${escapeHtml(renews)}</p>${ctx.extension ? `
+      <p style="margin:0 0 14px;">${escapeHtml(MONTHLY_EXTENSION_LINE)}</p>` : ''}
       <p style="margin:0 0 14px;">${escapeHtml(where)} <strong>${escapeHtml(ctx.loginEmail)}</strong>. Join from there when a session begins — <a href="${escapeHtml(ctx.eventsUrl)}" style="color:#C9603A;">open the sessions</a>.</p>
       <p style="margin:0 0 14px;">${escapeHtml(stop)}</p>
       <p style="margin:0;">Questions? Just reply to this email — a person reads it.</p>`,
@@ -1276,7 +1283,7 @@ export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx):
   return {
     subject: 'Your monthly live pass is running',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you — from today your monthly live pass opens every weekly Q&A and every monthly deepening session for as long as it runs.\n\n${renews}\n\n${where} ${ctx.loginEmail}. Join from there when a session begins:\n\n${ctx.eventsUrl}\n\n${stop}${ctx.manageUrl ? `\n\n${ctx.manageUrl}` : ''}\n\nQuestions? Just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nThank you — from today your monthly live pass opens every weekly Q&A and every monthly deepening session for as long as it runs.\n\n${renews}${ctx.extension ? `\n\n${MONTHLY_EXTENSION_LINE}` : ''}\n\n${where} ${ctx.loginEmail}. Join from there when a session begins:\n\n${ctx.eventsUrl}\n\n${stop}${ctx.manageUrl ? `\n\n${ctx.manageUrl}` : ''}\n\nQuestions? Just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
   };
 }
 

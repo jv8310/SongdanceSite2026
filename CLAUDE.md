@@ -838,8 +838,19 @@ anyone whose course no longer includes them (or never did). Logic in
   the money helpers count it a month per charge (`cyclesValueMinor`,
   `collectedGrossMinor`, the cash-in schedule, the orders page). Stripe: a
   subscription-mode Checkout with `installment_count 0` (no `cancel_at`); PayPal:
-  `total_cycles 0`. No certification-window add-on with it, and one per address
-  (the checkout refuses a second). **Cancelling** is the buyer's, from the signed
+  `total_cycles 0`. One per address (the checkout refuses a second). **The
+  certification-window extension goes with it too** (November 2026, Jacob): +20% of
+  each month, floored — **€62 the first month, then €52** (`livePassMonthly…Cents(cur,
+  true)`). The recurring price carries it (`amount_cents` €52, first-month extra
+  €10) and a **€0 `cert-extension` row in `bumps`** marks the order, so the money
+  figures need nothing new. It keeps the window open **for as long as the monthly
+  is paid**: `loadCertExtensions` reads the last day of the month paid for
+  (`paid_through`), so each renewal moves it on, a cancelled monthly keeps it to
+  the end of its paid month, and a monthly agreed for later opens it with its
+  first charge. Sold only to someone who holds the certification course, and only
+  when its first month reaches past the window they have
+  (`monthlyExtensionRefusal`; the page greys the tick and says why). Drip:
+  `prod_CertExtension` too, `cert_extension` = yes. **Cancelling** is the buyer's, from the signed
   link in its confirmation email (`/courses/live-pass/manage?t=…`,
   [`live-pass-manage-link.ts`](src/lib/courses/live-pass-manage-link.ts),
   `sd-lpm:`), sent again to the inbox on the order from "Manage my monthly pass" on the

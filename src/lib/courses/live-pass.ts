@@ -84,11 +84,24 @@
 // the first charges — and the first month's €8 more rides the first charge as a
 // one-off: a one-time line on Stripe's first invoice (one €52 charge), PayPal's
 // setup fee (two charges in the same minute, €8 + €44, as order bumps on a plan
-// already are). It is a `monthly-first-month` row in `bumps`, so the row says
+// already are). With the certification-window extension (November 2026, below)
+// both prices are 20% more. It is a `monthly-first-month` row in `bumps`, so the row says
 // what was charged; the money reports count it as the pass's own money, not as
 // an order bump (isCourseTopUpSlug, stats.ts). Not PayPal's trial cycle: the
 // site tells a monthly payment from a setup fee by its amount, and a €52 first
 // cycle on a €44 plan would never be counted.
+
+// The certification-window extension on the monthly (Jacob, November 2026):
+// the same add-on the passes carry, +20% of each month, floored like the rest —
+// €52 + €10 the first month, then €44 + €8 (€62, then €52). It keeps the window
+// to apply for certification open for as long as the monthly is paid: to the
+// end of the last month charged, so a cancelled monthly keeps it to the end of
+// its paid month and no further. The subscription's recurring price carries it
+// (`amount_cents` = €52, the first month's extra €10), and a €0
+// `cert-extension` row in `bumps` marks the order (as a free pass's does), so
+// every money figure already reads right and loadCertExtensions finds it. Sold
+// only to someone who holds the certification course, and only when its first
+// month reaches past the window they have (monthlyExtensionRefusal).
 
 import { formatMoney, type SupportedCurrency } from '../workshops/currency';
 import { businessDayOf, businessWindowUtc } from '../workshops/periods';
@@ -211,17 +224,27 @@ export function livePassMonthlyCents(currency: SupportedCurrency): number {
   return albumPriceCents(LIVE_PASS_MONTHLY_EUR_CENTS, currency);
 }
 
-// The monthly's first month: one month at the full price.
-export function livePassMonthlyFirstCents(currency: SupportedCurrency): number {
-  return livePassMonthlyCents(currency);
+// The certification-window extension on a month of the monthly: 20% of that
+// month, floored (never more than 20%).
+function monthlyExtensionOn(monthCents: number, currency: SupportedCurrency): number {
+  return floorTo((monthCents * CERT_EXTENSION_PERCENT) / 100, stepCents(currency));
 }
 
-// The monthly from its second month on: 15% off, floored like the passes.
-export function livePassMonthlyRenewalCents(currency: SupportedCurrency): number {
-  return floorTo(
+// The monthly's first month: one month at the full price (with the
+// certification-window extension, 20% more).
+export function livePassMonthlyFirstCents(currency: SupportedCurrency, withExtension = false): number {
+  const month = livePassMonthlyCents(currency);
+  return withExtension ? month + monthlyExtensionOn(month, currency) : month;
+}
+
+// The monthly from its second month on: 15% off, floored like the passes (with
+// the certification-window extension, 20% more).
+export function livePassMonthlyRenewalCents(currency: SupportedCurrency, withExtension = false): number {
+  const month = floorTo(
     (livePassMonthlyCents(currency) * (100 - LIVE_PASS_MONTHLY_RENEWAL_DISCOUNT_PERCENT)) / 100,
     stepCents(currency),
   );
+  return withExtension ? month + monthlyExtensionOn(month, currency) : month;
 }
 
 // The pass, discounted for its length and floored to a whole unit.
@@ -379,14 +402,34 @@ export async function listPaidLivePasses(db: D1Database, email?: string): Promis
   return rows.map(toPaidPass).filter((p): p is PaidLivePass => p !== null);
 }
 
-// The last day of each address's latest certification extension (the end of
-// that pass's months).
+// The last day of each address's latest certification extension: the end of
+// that pass's months, or — for a monthly taken with the extension — the last
+// day of the month it has paid for.
 export async function loadCertExtensions(db: D1Database, email?: string): Promise<Map<string, string>> {
   const out = new Map<string, string>();
+  const keep = (who: string, day: string) => {
+    const prev = out.get(who);
+    if (!prev || day > prev) out.set(who, day);
+  };
   for (const p of await listPaidLivePasses(db, email)) {
-    if (!p.certExtension) continue;
-    const prev = out.get(p.email);
-    if (!prev || p.endsOn > prev) out.set(p.email, p.endsOn);
+    if (p.certExtension) keep(p.email, p.endsOn);
+  }
+  // The monthlies: every one that has taken a payment, running or cancelled.
+  // paid_through is the first moment after the paid month (migration 0090); a
+  // preview before it has no column to read and counts none.
+  const byEmail = email ? ' AND lower(email) = ?' : '';
+  const monthlies = await db
+    .prepare(
+      `SELECT email, bumps, paid_through FROM course_registrations
+        WHERE product_slug = ? AND installments_paid > 0 AND status IN ('paid','cancelled')
+          AND paid_through IS NOT NULL AND bumps LIKE ?${byEmail}`,
+    )
+    .bind(LIVE_PASS_MONTHLY_SLUG, `%${CERT_EXTENSION_SLUG}%`, ...(email ? [email.trim().toLowerCase()] : []))
+    .all<{ email: string; bumps: string | null; paid_through: string }>()
+    .catch(() => ({ results: [] as Array<{ email: string; bumps: string | null; paid_through: string }> }));
+  for (const m of monthlies.results ?? []) {
+    if (!hasCertExtension(m.bumps)) continue;
+    keep(m.email.trim().toLowerCase(), addDays(businessDayOf(m.paid_through), -1));
   }
   return out;
 }

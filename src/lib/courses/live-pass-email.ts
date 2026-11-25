@@ -158,6 +158,7 @@ async function sendMonthlyConfirmation(env: MailEnv, passed: CourseRegistration)
       priceLabel: formatMoney(reg.amount_cents, currency),
       firstMonthLabel: firstExtra > 0 ? formatMoney(reg.amount_cents + firstExtra, currency) : null,
       renewsLabel: renewsOn ? fmtDay(renewsOn) : null,
+      extension: hasCertExtension(reg.bumps),
       manageUrl: await livePassManageUrlFor(env, reg.id),
       eventsUrl: LIVE_PASS_EVENTS_URL,
     });

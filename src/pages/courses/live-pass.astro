@@ -174,7 +174,16 @@ const prices = Object.fromEntries(
 const offers = LIVE_PASS_MONTHS.map((m) => livePassOffer(m, currency));
 // The monthly: the first month at the full price, every month after it less.
 const monthlyPrices = Object.fromEntries(
-  SUPPORTED_CURRENCIES.map((cur) => [cur, { first: livePassMonthlyFirstCents(cur), then: livePassMonthlyRenewalCents(cur) }]),
+  SUPPORTED_CURRENCIES.map((cur) => [
+    cur,
+    {
+      first: livePassMonthlyFirstCents(cur),
+      then: livePassMonthlyRenewalCents(cur),
+      // With the certification-window extension: 20% more on each.
+      firstExt: livePassMonthlyFirstCents(cur, true),
+      thenExt: livePassMonthlyRenewalCents(cur, true),
+    },
+  ]),
 );
 const monthlyFirstCents = livePassMonthlyFirstCents(currency);
 const monthlyCents = livePassMonthlyRenewalCents(currency);
@@ -258,6 +267,10 @@ const faq: { q: string; a: string }[] = [
   {
     q: 'Is it a subscription?',
     a: 'A pass isn’t: you pay once, and it ends after its last session. We’ll let you know by email when 1 session is left, so you can add another whenever you like. The monthly is: it opens every session while it runs and renews on the same day each month, so there is nothing to remember.',
+  },
+  {
+    q: 'Can I extend my certification window?',
+    a: 'If you are a certification student, yes: tick “Extend my certification window” with a pass or with the monthly. With a pass it keeps your window to apply for certification open for the months of the pass; with the monthly, for as long as the monthly is paid. It adds 20%.',
   },
   {
     q: 'How do I cancel the monthly?',
@@ -550,17 +563,23 @@ const faq: { q: string; a: string }[] = [
             </fieldset>
 
           {/* Only for a 9-month (certification) student; shown once the address says so. */}
-          <label class="lp-addon" data-lp-addon hidden={!showAddon || startMonthly}>
+          <label class="lp-addon" data-lp-addon hidden={!showAddon}>
             <input type="checkbox" name="cert_extension" checked={wantsExtension && showAddon} />
             <span>
               <span class="lp-addon-head">
                 <span><i class="ph-light ph-seal-check" aria-hidden="true"></i> Extend my certification window</span>
-                <span class="lp-addon-price">+<span data-lp-ext>{money(offers.find((o) => o.months === chosenMonths)!.extension_cents)}</span></span>
+                <span class="lp-addon-price">+<span data-lp-ext>{money(offers.find((o) => o.months === chosenMonths)!.extension_cents)}</span><span data-lp-ext-per hidden> a month</span></span>
               </span>
-              <span class="lp-addon-body">
+              {/* The browser swaps these two with the toggle. */}
+              <span class="lp-addon-body" data-lp-addon-body="pass">
                 Keeps your window to apply for certification open for the months of your pass (1, 3,
                 6 or 12, from the day it starts). For certification students whose window has closed.
                 Adds {CERT_EXTENSION_PERCENT}% to the pass.
+              </span>
+              <span class="lp-addon-body" data-lp-addon-body="monthly" hidden>
+                Keeps your window to apply for certification open for as long as your monthly is
+                paid, to the end of each month you have paid for. For certification students whose
+                window has closed. Adds {CERT_EXTENSION_PERCENT}% to each month.
               </span>
               <span class="lp-addon-note" data-lp-addon-note hidden></span>
             </span>
@@ -673,6 +692,7 @@ const faq: { q: string; a: string }[] = [
     pass_running?: boolean;
     monthly_running?: boolean;
     monthly_until?: string | null;
+    monthly_extension?: { helps: boolean; until: string };
     monthly_starts_on?: string | null;
     monthly_covered_until?: string | null;
     monthly_covered_by?: string | null;
@@ -687,7 +707,7 @@ const faq: { q: string; a: string }[] = [
   const form = document.querySelector<HTMLFormElement>('[data-lp-form]');
   if (form) {
     const prices = JSON.parse(form.dataset.prices || '{}') as Record<string, Record<string, Offer>>;
-    const monthlyPrices = JSON.parse(form.dataset.monthlyPrices || '{}') as Record<string, { first: number; then: number }>;
+    const monthlyPrices = JSON.parse(form.dataset.monthlyPrices || '{}') as Record<string, { first: number; then: number; firstExt: number; thenExt: number }>;
     const monthlyInput = form.querySelector<HTMLInputElement>('[name="months"][value="monthly"]')!;
     const monthlyFirstEl = form.querySelector<HTMLElement>('[data-lp-monthly-first]')!;
     const monthlyPriceEl = form.querySelector<HTMLElement>('[data-lp-monthly-price]')!;
@@ -704,6 +724,8 @@ const faq: { q: string; a: string }[] = [
     const addonLabel = form.querySelector<HTMLElement>('[data-lp-addon]')!;
     const addonInput = form.querySelector<HTMLInputElement>('[name="cert_extension"]')!;
     const addonNote = form.querySelector<HTMLElement>('[data-lp-addon-note]')!;
+    const addonBodies = Array.from(form.querySelectorAll<HTMLElement>('[data-lp-addon-body]'));
+    const extPer = form.querySelector<HTMLElement>('[data-lp-ext-per]')!;
     const upgradeEl = document.querySelector<HTMLElement>('[data-lp-upgrade]');
     const upgradeLink = document.querySelector<HTMLAnchorElement>('[data-lp-upgrade-link]');
     const wantsExtension = new URLSearchParams(location.search).get('extend') === '1';
@@ -821,20 +843,33 @@ const faq: { q: string; a: string }[] = [
       monthlyPriceEl.textContent = formatMoney(monthlyCents.then, cur);
       const m = months();
       const o = table[m];
-      extEl.textContent = formatMoney(o.extension_cents, cur);
       const monthly = isMonthly();
-      // No certification-window add-on with the monthly: it is sold with a pass.
-      if (monthly) addonInput.checked = false;
-      const ext = addonInput.checked ? o.extension_cents : 0;
+      // The certification-window add-on: 20% of the pass, or of each month of
+      // the monthly. Whether it would add anything for them is settled first,
+      // so a tick that cannot stand never reaches the total.
+      const cert = status?.certification;
+      const addonHelps = !status || !cert?.holds_course
+        ? true
+        : monthly
+          ? !!status.monthly_extension?.helps
+          : !!status.periods[String(m)]?.extensionHelps;
+      if (!cert?.holds_course || !addonHelps) addonInput.checked = false;
+      extEl.textContent = formatMoney(monthly ? monthlyCents.thenExt - monthlyCents.then : o.extension_cents, cur);
+      extPer.hidden = !monthly;
+      addonBodies.forEach((el) => (el.hidden = el.dataset.lpAddonBody !== (monthly ? 'monthly' : 'pass')));
+      const withExt = addonInput.checked;
+      const ext = withExt ? o.extension_cents : 0;
+      const monthFirst = withExt ? monthlyCents.firstExt : monthlyCents.first;
+      const monthThen = withExt ? monthlyCents.thenExt : monthlyCents.then;
       const startsOn = status?.monthly_running ? null : status?.monthly_starts_on ?? null;
       monthlyStartsEl.hidden = !startsOn;
       monthlyStartsEl.textContent = startsOn ? `Starts ${fmtDay(startsOn)} — nothing charged until then` : '';
       noteMonthlyText.textContent = monthlyNoteFor(startsOn);
       if (monthly) {
         totalEl.textContent = startsOn
-          ? `${formatMoney(monthlyCents.first, cur)} on ${fmtDay(startsOn)}, then ${formatMoney(monthlyCents.then, cur)} a month`
-          : `${formatMoney(monthlyCents.first, cur)}, then ${formatMoney(monthlyCents.then, cur)} a month`;
-        summaryLabel.textContent = 'Live pass · monthly';
+          ? `${formatMoney(monthFirst, cur)} on ${fmtDay(startsOn)}, then ${formatMoney(monthThen, cur)} a month`
+          : `${formatMoney(monthFirst, cur)}, then ${formatMoney(monthThen, cur)} a month`;
+        summaryLabel.textContent = `Live pass · monthly${withExt ? ' + certification window' : ''}`;
       } else {
         totalEl.textContent = formatMoney(o.price_cents + ext, cur);
         const contents = passInputs.find((r) => r.value === lastPass)?.dataset.lpContents ?? '';
@@ -864,10 +899,20 @@ const faq: { q: string; a: string }[] = [
       // The add-on is for 9-month students only; the 12-week card for 12-week
       // students who are not (yet) on the 9 months.
       const c = status?.certification;
-      addonLabel.hidden = !c?.holds_course || isMonthly();
-      if (!c?.holds_course) addonInput.checked = false;
+      addonLabel.hidden = !c?.holds_course;
       if (upgradeEl) upgradeEl.hidden = !(status?.twelve_week?.holds && !c?.holds_course);
-      if (status && c?.holds_course) {
+      if (status && c?.holds_course && monthly) {
+        const mx = status.monthly_extension;
+        addonNote.hidden = !mx;
+        if (mx && !mx.helps && c.ends_on) {
+          addonNote.textContent = `Your certification window already runs until ${fmtDay(c.ends_on)}, past the first month of the monthly, so it would add nothing yet.`;
+        } else if (mx && !c.may_certify) {
+          addonNote.textContent = `With the extension you may apply for certification while your monthly is paid: the first month until ${fmtDay(mx.until)}.`;
+        } else if (mx && c.ends_on) {
+          addonNote.textContent = `${c.open ? 'Your window is open until' : 'Your window closed on'} ${fmtDay(c.ends_on)}. With the extension it stays open while your monthly is paid: the first month until ${fmtDay(mx.until)}.`;
+        }
+        addonInput.disabled = !mx?.helps;
+      } else if (status && c?.holds_course) {
         const p = status.periods[String(m)];
         addonNote.hidden = false;
         if (!p?.extensionHelps && c.ends_on) {
@@ -877,9 +922,7 @@ const faq: { q: string; a: string }[] = [
         } else if (c.ends_on) {
           addonNote.textContent = `${c.open ? 'Your window is open until' : 'Your window closed on'} ${fmtDay(c.ends_on)}. With the extension it stays open until ${fmtDay(p.endsOn)}.`;
         }
-        const helps = !!p?.extensionHelps;
-        addonInput.disabled = !helps;
-        if (!helps) addonInput.checked = false;
+        addonInput.disabled = !p?.extensionHelps;
       }
     }
 
@@ -1068,7 +1111,7 @@ const faq: { q: string; a: string }[] = [
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             months: isMonthly() ? 'monthly' : months(),
-            cert_extension: !isMonthly() && addonInput.checked,
+            cert_extension: addonInput.checked,
             first_name: get('first_name'),
             last_name: get('last_name'),
             email: get('email'),

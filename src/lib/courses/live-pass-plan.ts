@@ -212,6 +212,24 @@ export function extensionRefusal(plan: LivePassPlan, months: LivePassMonths): st
   return `Your certification window already runs until ${label}, past what the extension would add, so it would buy you nothing. Untick it to continue.`;
 }
 
+// The same question for the monthly, whose extension runs month by month: it
+// is worth taking when its first month already reaches past the window they
+// have (or they hold the course without the right to certify). `startsOn` is
+// the day of the first charge (null = today). Null when it may be sold.
+export function monthlyExtensionUntil(startsOn: string | null, today = brusselsToday()): string {
+  return addDays(addMonths(startsOn ?? today, 1), -1);
+}
+
+export function monthlyExtensionRefusal(window: CertWindow, startsOn: string | null, today = brusselsToday()): string | null {
+  if (extensionWouldHelp(window, monthlyExtensionUntil(startsOn, today))) return null;
+  if (!window.holdsCourse) {
+    return 'The certification extension is for students of the certification course, and we find no certification course under this email address. If you bought it with another address, please use that one.';
+  }
+  const day = window.endsOn ?? today;
+  const label = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return `Your certification window already runs until ${label}, past the first month of the monthly, so the extension would add nothing yet. Untick it to continue.`;
+}
+
 // ── The live sessions they already have ─────────────────────────────────────
 //
 // "Your live access is until DATE" (Jacob, November 2026): one answer for
@@ -416,6 +434,9 @@ export type LivePassStatus = {
     items: Array<{ icon: string; title: string; detail: string }>;
   };
   access_after: Record<string, string>;
+  // The certification-window extension on a monthly taken today: whether it
+  // would add anything, and the last day its first month would keep the window open.
+  monthly_extension: { helps: boolean; until: string };
   certification: { holds_course: boolean; may_certify: boolean; ends_on: string | null; open: boolean };
   twelve_week: { holds: boolean; live_until: string | null };
 };
@@ -528,6 +549,10 @@ export async function loadLivePassStatus(
       periods: plan.periods,
       access: describeLiveAccess(access, plan, !!monthly, today),
       access_after: accessAfter,
+      monthly_extension: {
+        helps: monthlyExtensionRefusal(plan.window, start.startsOn, today) === null,
+        until: monthlyExtensionUntil(start.startsOn, today),
+      },
       certification: {
         holds_course: plan.window.holdsCourse,
         may_certify: plan.window.mayCertify,
