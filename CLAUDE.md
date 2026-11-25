@@ -664,7 +664,7 @@ November"). Jacob, 25 Nov 2026.
   12-week course, the certification course and the path (certification floored to a round 5,
   `certPromoPriceCents`: EUR €797 → **€395**, path €1,347 → **€670**, 12-week **€275**,
   seats **€11 / €22**); **20%** off the live passes of 1, 3, 6 and 12 months
-  (`livePassPromoPercent`, in `livePassPriceCents` / `livePassOffer`: €41 / €105 / €187; the
+  (`livePassPromoPercent`, in `livePassPriceCents` / `livePassOffer`: €41 / €105 / €187 / €348; the
   add-on follows the pass). **The monthly: 20% off its first two months** (`livePassMonthlyPromo`:
   €41.60, then €35.20, then €44), for a monthly agreed during the sale, also one that starts later.
   Stripe takes it as a coupon on the subscription (`ensureRepeatingCoupon`, id
@@ -697,6 +697,11 @@ November"). Jacob, 25 Nov 2026.
   **migration 0102** seeding the fifteen as drafts ("BFCM A1 …" to "BFCM E3 …"). A = workshop
   + masterclass; B = 12-week + path; C and D = certification alone + live pass; E =
   certification alone. Links carry `{{prefill}}` and no discount (the price is on the page).
+  Each email also carries a section or two taken from the page it leads to (`MORE` in the
+  script: the workshop's four beats and its questions, the twelve modules, what the
+  certification course holds and teaches, what the live sessions are), the reminders most of
+  all, so the three differ; the pass box lists 1, 3, 6 and 12 months and the monthly's two sale
+  months. **Migration 0103** wrote that version into the drafts (only those still a draft).
   Sent from the site only (no Drip twin, no `in-drip` exclusion). To change words after the
   drafts exist: edit the script, run it, save the draft again (`broadcast_save`).
 - **After the sale** nothing needs switching off. To run another sale: move the two
