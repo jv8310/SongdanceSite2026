@@ -1,5 +1,6 @@
 // POST { email } → what a live pass bought today would look like for this
-// address: each length's dates, whether the certification-window add-on would
+// address: the live sessions they already have ("Your live access is until …",
+// their passes cumulated), each length's dates, whether the certification-window add-on would
 // buy anything, their certification window as it stands, whether they walk the
 // 12-week course, whether a monthly is already running, and the name and
 // country to fill the form with. The live-pass
@@ -8,8 +9,7 @@
 // (the 12-week and certification pages fill their forms from Drip the same way).
 
 import type { APIRoute } from 'astro';
-import { loadBuyerDetails, planLivePass, planMonthlyStart } from '../../../lib/courses/live-pass-plan';
-import { findRunningMonthly } from '../../../lib/courses/live-pass-monthly';
+import { loadLivePassStatus } from '../../../lib/courses/live-pass-plan';
 
 export const prerender = false;
 
@@ -33,33 +33,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!EMAIL_RE.test(email)) return json(400, { error: 'Please enter a valid email address.' });
 
   try {
-    const [plan, details, monthly] = await Promise.all([
-      planLivePass(env.DB, email),
-      loadBuyerDetails(env.DB, email),
-      findRunningMonthly(env.DB, email),
-    ]);
-    // When a monthly taken today would be first charged: the day the live
-    // sessions they already have end (here or in the member app), else today.
-    const start = await planMonthlyStart(env, email, plan);
+    const { status, details } = await loadLivePassStatus(env, env.DB, email);
     return json(200, {
-      email,
-      live_until: plan.liveUntil,
-      pass_running: plan.passRunning,
-      // A monthly already running: the page offers "Manage my monthly pass" instead
-      // of a second one (a yes/no only — the manage link goes by email).
-      monthly_running: !!monthly,
-      monthly_until: plan.monthlyUntil,
-      monthly_starts_on: start.startsOn,
-      monthly_covered_until: start.coveredUntil,
-      monthly_covered_by: start.coveredBy,
-      periods: plan.periods,
-      certification: {
-        holds_course: plan.window.holdsCourse,
-        may_certify: plan.window.mayCertify,
-        ends_on: plan.window.endsOn,
-        open: plan.window.open,
-      },
-      twelve_week: { holds: plan.twelveWeek.holds, live_until: plan.twelveWeek.liveUntil },
+      ...status,
       details: { first_name: details.firstName, last_name: details.lastName, country: details.country },
     });
   } catch (err) {

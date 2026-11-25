@@ -51,7 +51,7 @@ export type GrantEnv = CoursePaidHandlerEnv & OrderEnv;
 
 export type GrantLivePassInput = {
   email: string;
-  months: 1 | 3 | 6;
+  months: 1 | 3 | 6 | 12;
   extend: boolean;
   note: string;
   actor: string;
@@ -99,7 +99,7 @@ export function parseGrantInput(
   const email = String(i.email ?? '').trim().toLowerCase();
   if (!EMAIL_RE.test(email) || email.length > 254) return { ok: false, error: 'invalid-email', message: 'That is not a valid email address.' };
   const months = parseLivePassMonths(i.months);
-  if (!months) return { ok: false, error: 'invalid-months', message: 'A live pass is 1, 3 or 6 months.' };
+  if (!months) return { ok: false, error: 'invalid-months', message: 'A live pass is 1, 3, 6 or 12 months.' };
   const note = String(i.note ?? '').trim();
   if (!note) return { ok: false, error: 'note-required', message: 'Say why the pass is given (the note is kept with the order).' };
   if (note.length > NOTE_MAX) return { ok: false, error: 'note-too-long', message: `Keep the note under ${NOTE_MAX} characters.` };

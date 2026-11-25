@@ -8,6 +8,7 @@
 import type { APIRoute } from 'astro';
 import { LIVE_PASS_MONTHLY_SLUG } from '../../../lib/courses/live-pass';
 import { sendLivePassManageLink } from '../../../lib/courses/live-pass-email';
+import { SCHEDULED_MONTHLY_SQL } from '../../../lib/courses/live-pass-monthly';
 import type { CourseRegistration } from '../../../lib/courses/db';
 
 export const prerender = false;
@@ -36,12 +37,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     message: 'If there is a monthly live pass under that address, the link to manage it is on its way there now.',
   };
   try {
-    // Its latest monthly that took a payment; a link to one long ended still
+    // Its latest monthly that took a payment, or one agreed for a later start; a link to one long ended still
     // says so in plain words and leads back to the pass page.
     const reg = await env.DB
       .prepare(
         `SELECT * FROM course_registrations
-          WHERE product_slug = ? AND lower(email) = ? AND installments_paid > 0
+          WHERE product_slug = ? AND lower(email) = ? AND (installments_paid > 0 OR ${SCHEDULED_MONTHLY_SQL})
           ORDER BY id DESC LIMIT 1`,
       )
       .bind(LIVE_PASS_MONTHLY_SLUG, email)

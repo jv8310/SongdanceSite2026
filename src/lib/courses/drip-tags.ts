@@ -48,7 +48,13 @@ export function courseDripTags(reg: {
 
   // The monthly: the live pass tag (a pass holder, for any automation keyed on
   // it) plus its own, so the two can be told apart.
-  if (isLivePassMonthlySlug(reg.product_slug)) return [LIVE_PASS_DRIP_TAG, LIVE_PASS_MONTHLY_DRIP_TAG];
+  // With the certification-window extension, its tag too.
+  if (isLivePassMonthlySlug(reg.product_slug)) {
+    const ext = parsePurchasedBumps(reg.bumps).some((b) => b.slug === CERT_EXTENSION_SLUG);
+    return ext
+      ? [LIVE_PASS_DRIP_TAG, LIVE_PASS_MONTHLY_DRIP_TAG, CERT_EXTENSION_DRIP_TAG]
+      : [LIVE_PASS_DRIP_TAG, LIVE_PASS_MONTHLY_DRIP_TAG];
+  }
 
   if (isLivePassSlug(reg.product_slug)) {
     const ext = parsePurchasedBumps(reg.bumps).some((b) => b.slug === CERT_EXTENSION_SLUG);

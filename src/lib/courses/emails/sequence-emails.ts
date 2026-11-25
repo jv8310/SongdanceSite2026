@@ -303,7 +303,7 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
             base,
           ),
           para(
-            'If you’d like to keep joining the live sessions after this week, the [live pass](/courses/live-pass) carries them on — for 1, 3 or 6 months of Q&As and deepening sessions, starting the day after your twelve weeks end, so there’s no gap.',
+            'If you’d like to keep joining the live sessions after this week, the [live pass](/courses/live-pass) carries them on — for 1, 3, 6 or 12 months of Q&As and deepening sessions, starting the day after your twelve weeks end, so there’s no gap.',
             base,
           ),
           button('Go to the Q&A calendar', circleUrl('live')),

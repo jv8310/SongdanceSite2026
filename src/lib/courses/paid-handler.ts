@@ -167,6 +167,7 @@ export async function pushPaidCourseRegistrationToDrip(
       eventName = LIVE_PASS_MONTHLY_DRIP_EVENT;
       customFields.live_pass_starts = brusselsToday();
       customFields.live_pass_sessions = 'monthly';
+      customFields.cert_extension = hasCertExtension(reg.bumps) ? 'yes' : 'no';
     } else if (isSessionProductSlug(reg.product_slug)) {
       // An private session with Jacob. The moment itself is on
       // session_bookings; the event carries the order for any automation.
@@ -300,7 +301,7 @@ export async function pushPaidCourseRegistrationToDrip(
     // extension. Idempotent per end date; never throws.
     if (
       ['cc-cert', 'cc-bundle', TWELVE_WEEK_PRODUCT_SLUG].includes(reg.product_slug) ||
-      (isLivePassSlug(reg.product_slug) && hasCertExtension(reg.bumps))
+      ((isLivePassSlug(reg.product_slug) || isLivePassMonthlySlug(reg.product_slug)) && hasCertExtension(reg.bumps))
     ) {
       await syncCertAccessForEmail(env, reg.email);
     }

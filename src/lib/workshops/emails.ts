@@ -1245,9 +1245,15 @@ export type LivePassMonthlyConfirmedCtx = {
   // "€35.20" — the second month, when a sale made it cheaper than the rest.
   secondMonthLabel?: string | null;
   renewsLabel: string | null; // "18 November 2026" — the next charge
+  // Taken with the certification-window extension: the window to apply for
+  // certification stays open for as long as the monthly is paid.
+  extension?: boolean;
   manageUrl: string | null;
   eventsUrl: string;
 };
+
+const MONTHLY_EXTENSION_LINE =
+  'It carries the certification window extension: your window to apply for certification stays open for as long as your monthly is paid, to the end of each month you have paid for.';
 
 export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx): EmailContent {
   const stepsDown = !!ctx.firstMonthLabel && ctx.firstMonthLabel !== ctx.priceLabel;
@@ -1271,7 +1277,8 @@ export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx):
     heading: 'Your monthly live pass is running',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">Thank you — from today your monthly live pass opens <strong>every weekly Q&amp;A and every monthly deepening session</strong> for as long as it runs.</p>
-      <p style="margin:0 0 14px;">${escapeHtml(renews)}</p>
+      <p style="margin:0 0 14px;">${escapeHtml(renews)}</p>${ctx.extension ? `
+      <p style="margin:0 0 14px;">${escapeHtml(MONTHLY_EXTENSION_LINE)}</p>` : ''}
       <p style="margin:0 0 14px;">${escapeHtml(where)} <strong>${escapeHtml(ctx.loginEmail)}</strong>. Join from there when a session begins — <a href="${escapeHtml(ctx.eventsUrl)}" style="color:#C9603A;">open the sessions</a>.</p>
       <p style="margin:0 0 14px;">${escapeHtml(stop)}</p>
       <p style="margin:0;">Questions? Just reply to this email — a person reads it.</p>`,
@@ -1281,7 +1288,7 @@ export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx):
   return {
     subject: 'Your monthly live pass is running',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you — from today your monthly live pass opens every weekly Q&A and every monthly deepening session for as long as it runs.\n\n${renews}\n\n${where} ${ctx.loginEmail}. Join from there when a session begins:\n\n${ctx.eventsUrl}\n\n${stop}${ctx.manageUrl ? `\n\n${ctx.manageUrl}` : ''}\n\nQuestions? Just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nThank you — from today your monthly live pass opens every weekly Q&A and every monthly deepening session for as long as it runs.\n\n${renews}${ctx.extension ? `\n\n${MONTHLY_EXTENSION_LINE}` : ''}\n\n${where} ${ctx.loginEmail}. Join from there when a session begins:\n\n${ctx.eventsUrl}\n\n${stop}${ctx.manageUrl ? `\n\n${ctx.manageUrl}` : ''}\n\nQuestions? Just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
   };
 }
 
@@ -1340,7 +1347,7 @@ export function livePassMonthlyScheduledEmail(ctx: LivePassMonthlyScheduledCtx):
 export function livePassMonthlyStoppedEmail(ctx: { name?: string | null; passUrl: string }): EmailContent {
   const body =
     "This month's payment for your monthly live pass didn't go through, even after a few tries, so the monthly has stopped and nothing more will be charged. Often it is simply a card that has expired or been replaced.";
-  const back = 'Whenever you would like to come back to the sessions, you can start a new monthly — or a pass for 1, 3 or 6 months — from the page below.';
+  const back = 'Whenever you would like to come back to the sessions, you can start a new monthly — or a pass for 1, 3, 6 or 12 months — from the page below.';
   const html = shell({
     preheader: "This month's payment didn't go through, so your monthly has stopped.",
     heading: 'Your monthly live pass has stopped',

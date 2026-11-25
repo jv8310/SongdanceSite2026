@@ -9,7 +9,7 @@
 // which is midnight on the US west coast, so nobody's Monday is cut short):
 //   - 50% off the workshop and masterclass seat (the order bump never);
 //   - 50% off the 12-week course, the certification course and the path;
-//   - 20% off the live passes of 1, 3 and 6 months (LIVE_PASS_PROMO_PERCENT;
+//   - 20% off the live passes of 1, 3, 6 and 12 months (LIVE_PASS_PROMO_PERCENT;
 //     the monthly keeps its price);
 //   - nothing else: the Grief Course, the Forgiveness Course, the journeys,
 //     the albums, private sessions and retreats keep their prices
@@ -54,7 +54,7 @@ export const LAUNCH_PROMO_TAG = 'Black Friday';
 // How emails and labels name the sale in a sentence ("the … runs through").
 export const LAUNCH_PROMO_SALE_NAME = 'Black Friday sale';
 
-// What the live passes (1, 3 and 6 months) come down by while the sale runs.
+// What the live passes (1, 3, 6 and 12 months) come down by while the sale runs.
 export const LIVE_PASS_PROMO_PERCENT = 20;
 
 // The monthly live pass during the sale: this percent off its first months
@@ -82,7 +82,7 @@ export function launchPromoRenderable(nowMs: number = Date.now()): boolean {
   return Number.isFinite(LAUNCH_PROMO_ENDS_AT_MS) && nowMs < LAUNCH_PROMO_ENDS_AT_MS;
 }
 
-// The sale's percent on a live pass of 1, 3 or 6 months, else 0.
+// The sale's percent on a live pass of 1, 3, 6 or 12 months, else 0.
 export function livePassPromoPercent(nowMs: number = Date.now()): number {
   return launchPromoActive(nowMs) ? LIVE_PASS_PROMO_PERCENT : 0;
 }

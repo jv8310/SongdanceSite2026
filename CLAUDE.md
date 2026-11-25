@@ -663,7 +663,7 @@ November"). Jacob, 25 Nov 2026.
 - **What it covers**: 50% off the workshop and masterclass seat (never the bump), the
   12-week course, the certification course and the path (certification floored to a round 5,
   `certPromoPriceCents`: EUR €797 → **€395**, path €1,347 → **€670**, 12-week **€275**,
-  seats **€11 / €22**); **20%** off the live passes of 1, 3 and 6 months
+  seats **€11 / €22**); **20%** off the live passes of 1, 3, 6 and 12 months
   (`livePassPromoPercent`, in `livePassPriceCents` / `livePassOffer`: €41 / €105 / €187; the
   add-on follows the pass). **The monthly: 20% off its first two months** (`livePassMonthlyPromo`:
   €41.60, then €35.20, then €44), for a monthly agreed during the sale, also one that starts later.
@@ -777,20 +777,42 @@ anyone whose course no longer includes them (or never did). Logic in
 [`src/lib/courses/live-pass.ts`](src/lib/courses/live-pass.ts) (October 2026).
 
 - **Prices**: 1 month €52; 3 months = 3 × €52 − 15% → **€132**; 6 months =
-  6 × €52 − 25% → **€234**, floored to whole units (5 for the krona family) so
+  6 × €52 − 25% → **€234**; 12 months (the yearly pass, November 2026) =
+  12 × €52 − 30% → **€436**, floored to whole units (5 for the krona family) so
   the advertised percent is never under-delivered. Other currencies scale the
   €52 month with the albums' ratios (`albumPriceCents`). The add-on **Extend my
-  certification window** is +20% of the pass, floored: €10 / €26 / €46 — shown
+  certification window** is +20% of the pass, floored: €10 / €26 / €46 / €87 — shown
   only to a 9-month (certification) student, CEEE cohort included.
 - **Sold by the month, counted by the session** (Jacob, October 2026): a pass
-  holds exactly **4 / 12 / 24 Q&As and 1 / 3 / 6 deepening sessions**
+  holds exactly **4 / 12 / 24 / 48 Q&As and 1 / 3 / 6 / 12 deepening sessions**
   (`livePassSessions`, `livePassContents` — always in numerals) — the next ones
   on the member app's calendar from the day it starts — and access ends after
   the last of them. A week without a Q&A costs nobody a session, and passes
   queue. **The member app counts the sessions** (it holds the calendar); the
-  site never knows which session a pass ends on, so no page, email or Drip
-  field gives a pass an end date.
-- **Rides the course machinery** as `live-pass-1m` / `-3m` / `-6m` on
+  site never knows which session a pass ends on, so no email or Drip field
+  gives a pass an end date; the pass page says "until around" (below).
+- **The registration card starts with the email address** (November 2026):
+  nothing else of the form shows until the address is known (typed, or from the
+  link). Then: **"Your live access is until DATE"** with what gives it — their
+  course, their passes (each with the sessions still to come), a monthly — then a
+  toggle **One-time pass / Monthly subscription**, the four passes or the monthly,
+  and the rest of the form. One answer for the page and
+  `/api/courses/live-pass-status`: `loadLivePassStatus` in `live-pass-plan.ts`
+  (the words too: `describeLiveAccess`).
+- **Passes are cumulated** (`loadLiveAccess`): two passes are the sessions of
+  both, one after the other, so the access runs to the end of the last. The day
+  is the member app's when it has every session of every open pass on its
+  calendar (the day of the last one); while a pass still waits for sessions to be
+  scheduled (the calendar usually holds a few weeks) it is an estimate, "until
+  around": the end of the passes' months, stacked (`endsOn`). Each pass card then
+  says "Live access until around …", its months counted from the day after what
+  they have. The same answer holds a new **monthly** back (`planMonthlyStart`):
+  until November 2026 a pass whose sessions were not on the calendar yet was left
+  out, so a monthly taken behind two passes was charged after the first alone.
+  The app names each pass's order and what is still to come (`AppCourse.sourceRef`
+  / `.pass`); an app deployed before that still gives the date, without the
+  counts.
+- **Rides the course machinery** as `live-pass-1m` / `-3m` / `-6m` / `-12m` on
   `course_registrations` (full payment, Stripe + PayPal); the add-on is a
   `cert-extension` row in `bumps`, so every money report already counts it.
   Drip: `prod_LivePass` (+ `prod_CertExtension`), event `Completed live pass
@@ -879,12 +901,26 @@ anyone whose course no longer includes them (or never did). Logic in
   the money helpers count it a month per charge (`cyclesValueMinor`,
   `collectedGrossMinor`, the cash-in schedule, the orders page). Stripe: a
   subscription-mode Checkout with `installment_count 0` (no `cancel_at`); PayPal:
-  `total_cycles 0`. No certification-window add-on with it, and one per address
-  (the checkout refuses a second). **Cancelling** is the buyer's, from the signed
+  `total_cycles 0`. One per address (the checkout refuses a second). **The
+  certification-window extension goes with it too** (November 2026, Jacob): +20% of
+  each month, floored — **€62 the first month, then €52** (`livePassMonthly…Cents(cur,
+  true)`). The recurring price carries it (`amount_cents` €52, first-month extra
+  €10) and a **€0 `cert-extension` row in `bumps`** marks the order, so the money
+  figures need nothing new. It keeps the window open **for as long as the monthly
+  is paid**: `loadCertExtensions` reads the last day of the month paid for
+  (`paid_through`), so each renewal moves it on, a cancelled monthly keeps it to
+  the end of its paid month, and a monthly agreed for later opens it with its
+  first charge. Sold only to someone who holds the certification course, and only
+  when its first month reaches past the window they have
+  (`monthlyExtensionRefusal`; the page greys the tick and says why). Drip:
+  `prod_CertExtension` too, `cert_extension` = yes. **Cancelling** is the buyer's, from the signed
   link in its confirmation email (`/courses/live-pass/manage?t=…`,
   [`live-pass-manage-link.ts`](src/lib/courses/live-pass-manage-link.ts),
   `sd-lpm:`), sent again to the inbox on the order from "Manage my monthly pass" on the
-  pass page — never shown on screen. Stripe gets `cancel_at_period_end` (and can
+  pass page — never shown on screen. That button sits in the personal panel of
+  the registration card, only for an address that has a monthly (running, agreed
+  for later, or cancelled with its month still to run); the separate box with its
+  own email field went in November 2026, since the card asks for the address first. Stripe gets `cancel_at_period_end` (and can
   be taken back while the month runs); PayPal is cancelled at once; either way the
   app keeps the sessions open to `paid_through`. **An admin can do the same for
   them** from the order page (`/admin/orders/C-<id>`, where a plan's Stop control
