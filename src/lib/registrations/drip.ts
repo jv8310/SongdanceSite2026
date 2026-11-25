@@ -204,6 +204,49 @@ export async function listSubscribersByTag(
   return out;
 }
 
+// One page of the whole subscriber list by mailing status, for the contact-list
+// sync (contacts/drip-sync.ts). `deliverable` is false when Drip has flagged
+// the address (hard bounce, complaint) while the status still reads active.
+export type DripListedSubscriber = DripSubscriber & { status?: string; deliverable?: boolean };
+
+export async function listSubscribersPage(
+  cfg: DripConfig,
+  status: 'active' | 'unsubscribed',
+  page: number,
+  perPage = 1000,
+): Promise<{ subscribers: DripListedSubscriber[]; totalPages: number; totalCount: number }> {
+  const qs = new URLSearchParams({ status, per_page: String(perPage), page: String(page) });
+  const res = await fetch(`${baseUrl(cfg)}/subscribers?${qs}`, {
+    method: 'GET',
+    headers: { Authorization: authHeader(cfg), Accept: 'application/vnd.api+json' },
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!res.ok) throw new Error(`Drip listSubscribersPage: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  const data = (await res.json()) as {
+    subscribers?: Array<Record<string, unknown>>;
+    meta?: { total_pages?: number; total_count?: number };
+  };
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const subscribers: DripListedSubscriber[] = [];
+  for (const s of data.subscribers ?? []) {
+    const email = str(s.email);
+    if (!email) continue;
+    subscribers.push({
+      id: str(s.id),
+      email,
+      first_name: str(s.first_name),
+      last_name: str(s.last_name),
+      country: str(s.country),
+      time_zone: str(s.time_zone),
+      tags: Array.isArray(s.tags) ? (s.tags as unknown[]).map((t) => String(t)) : [],
+      custom_fields: {},
+      status: str(s.status),
+      deliverable: typeof s.deliverable === 'boolean' ? s.deliverable : undefined,
+    });
+  }
+  return { subscribers, totalPages: data.meta?.total_pages ?? 1, totalCount: data.meta?.total_count ?? subscribers.length };
+}
+
 // Remove a single tag from a subscriber.
 // DELETE /v2/:account_id/subscribers/:id_or_email/tags/:tag
 // A 404 (no such subscriber, or they never had the tag) is the state we wanted.

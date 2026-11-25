@@ -7,6 +7,7 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { dripSyncState } from '../../../lib/contacts/drip-sync';
 import {
   countContacts,
   countSendable,
@@ -31,6 +32,20 @@ const deadSuppressed = await countDeadDomainSuppressions(env.DB);
 const uncheckedDomains = await uncheckedContactDomainCount(env.DB);
 // Addresses taken off by the bounce-checker loop + Resend hard bounces/complaints.
 const bounceSuppressed = await countBounceSuppressions(env.DB);
+// Drip → this list: the last finished run, and one under way.
+const drip = await dripSyncState(env.DB);
+const dripWhen = (iso: string) =>
+  new Date(iso).toLocaleString('en-GB', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const dripHeld = drip.last ? Object.entries(drip.last.activeButSuppressed).sort((a, b) => b[1] - a[1]) : [];
+const dripHeldTotal = dripHeld.reduce((n, [, c]) => n + c, 0);
+const HELD_WORDS: Record<string, string> = {
+  unsubscribe: 'unsubscribed here',
+  unsubscribed: 'unsubscribed here',
+  bounced: 'bounced',
+  complaint: 'marked an email as spam',
+  invalid_domain: 'at a dead domain',
+  invalid_address: 'an invalid address',
+};
 ---
 
 <Layout title="Admin — Contacts — Songdance" description="">
@@ -57,6 +72,43 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
         <div class="ct-stat"><span class="ct-num">{sendable.toLocaleString()}</span><span class="ct-lbl">sendable (minus suppressions)</span></div>
         <div class="ct-stat"><span class="ct-num">{deadSuppressed.toLocaleString()}</span><span class="ct-lbl">at dead domains</span></div>
         <div class="ct-stat"><span class="ct-num">{bounceSuppressed.toLocaleString()}</span><span class="ct-lbl">bounced / complained</span></div>
+      </div>
+    </section>
+
+    <section class="adm-section" id="drip-sync">
+      <h2>Everyone in Drip, on this list</h2>
+      <p class="ct-help">
+        Copies every <strong>active</strong> Drip subscriber onto this list (a new
+        contact when missing; an existing one only gets a missing name, timezone or
+        country and Drip's tags added to its own) and puts everyone
+        <strong>unsubscribed or undeliverable in Drip</strong> on the do-not-mail
+        list. It never removes anyone and never lifts a do-not-mail. It also runs by
+        itself, a few pages every hour, starting again each day.
+      </p>
+      {drip.last ? (
+        <p class="ct-help">
+          Last full run finished {dripWhen(drip.last.finishedAt)}:
+          <strong>{drip.last.activeSeen.toLocaleString()}</strong> active in Drip,
+          <strong>{drip.last.created.toLocaleString()}</strong> of them were not on this list and were added,
+          {' '}{drip.last.undeliverable.toLocaleString()} flagged undeliverable by Drip,
+          {' '}{drip.last.unsubscribedSeen.toLocaleString()} unsubscribed in Drip
+          ({drip.last.suppressionsAdded.toLocaleString()} new on the do-not-mail list).
+          {dripHeldTotal > 0 && (
+            <>
+              {' '}<strong>{dripHeldTotal.toLocaleString()}</strong> are active in Drip but not mailed from here:
+              {' '}{dripHeld.map(([reason, n]) => `${n.toLocaleString()} ${HELD_WORDS[reason] ?? reason}`).join(', ')}.
+            </>
+          )}
+        </p>
+      ) : (
+        <p class="ct-help"><strong>No full run yet.</strong> Until one has finished, this list may be missing people Drip holds.</p>
+      )}
+      {drip.error && <p class="ct-help">⚠ Last attempt failed ({dripWhen(drip.error.at)}): {drip.error.message}</p>}
+      <div class="ct-actions">
+        <button id="ct-drip" class="adm-btn" type="button">{drip.run ? 'Carry on the run' : 'Sync from Drip now'}</button>
+        <span id="ct-drip-msg" class="ct-progress">
+          {drip.run ? `A run is under way: ${drip.run.phase === 'active' ? 'active subscribers' : 'unsubscribes'}, page ${drip.run.page}${drip.run.totalPages ? ` of ${drip.run.totalPages}` : ''}` : ''}
+        </span>
       </div>
     </section>
 
@@ -435,6 +487,47 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
         fileInput.disabled = false;
       }
     });
+
+    // Drip → this list: drive the run to its end, a few pages per request.
+    (function () {
+      const btn = document.getElementById('ct-drip');
+      if (!btn) return;
+      const msg = document.getElementById('ct-drip-msg');
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        msg.textContent = 'Reading Drip…';
+        let failures = 0;
+        try {
+          for (let first = true; ; first = false) {
+            const res = await fetch('/api/admin/contacts/drip-sync', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ start: first }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              // One page is tried again from where it stopped; give up after three in a row.
+              if (++failures >= 3) throw new Error(data.error || 'Sync failed');
+              continue;
+            }
+            failures = 0;
+            const run = data.state.run;
+            if (data.done || !run) {
+              const l = data.state.last;
+              msg.textContent = l
+                ? `Done: ${Number(l.activeSeen).toLocaleString()} active in Drip, ${Number(l.created).toLocaleString()} added to this list, ${Number(l.suppressionsAdded).toLocaleString()} new on the do-not-mail list. Reload to see the figures.`
+                : 'Done.';
+              break;
+            }
+            msg.textContent =
+              `${run.phase === 'active' ? 'Active subscribers' : 'Unsubscribes'}: page ${run.page - 1}` +
+              `${run.totalPages ? ' of ' + run.totalPages : ''} · ${Number(run.created).toLocaleString()} added so far…`;
+          }
+        } catch (err) {
+          msg.textContent = 'Stopped: ' + (err && err.message ? err.message : String(err)) + ' Press again to carry on.';
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    })();
 
     // Clean dead domains — loops the batch endpoint until every contact domain
     // is resolved, then the server suppresses addresses at dead domains.

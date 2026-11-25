@@ -3060,6 +3060,18 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
     on the site (about 2,200; Drip itself holds about 12,500 active subscribers, 25 Nov
     2026). **Jacob no longer sends marketing from Drip (25 Nov 2026), so a broadcast should
     not exclude `in-drip`**: it would skip every site buyer. The page warns when one does.
+  - **Everyone in Drip is on this list** (25 Nov 2026,
+    [`src/lib/contacts/drip-sync.ts`](src/lib/contacts/drip-sync.ts), `/admin/contacts` →
+    "Everyone in Drip, on this list", `/api/admin/contacts/drip-sync`): every **active,
+    deliverable** Drip subscriber becomes a contact when missing (source `drip`; an existing
+    one only gets a missing name / timezone / country, and Drip's tags **added**, never
+    replaced, never under `app:` / `cert:` / `bfcm:` / `in-drip`); everyone **unsubscribed**
+    or flagged **undeliverable** in Drip goes on `email_suppressions` (source `drip`). It
+    never deletes and never lifts a suppression. Resumable by page (`workshop_config`
+    `drip_contact_sync`): the hourly cron reads 4 pages of 1,000 per tick and starts a new
+    run a day after the last finished; the button drives a run to its end. The panel says
+    how many Drip-active people were missing and how many are active in Drip but
+    do-not-mail here, by reason.
   - **Everyone in the app** (`app:` tags, October 2026,
     [`src/lib/broadcasts/app-tags.ts`](src/lib/broadcasts/app-tags.ts)): the site asks the
     member app (`APP_ADMIN` → `broadcastMembers`, the app's `lib/broadcast-tags.ts`, where the
