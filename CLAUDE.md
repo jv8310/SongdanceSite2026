@@ -2139,6 +2139,23 @@ notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/repor
   for ad spend and seat cost — the same colouring as the stats-page deltas);
   the comparison window is gathered with the same code, so it is the figure the
   dashboard would show for that window.
+- **Profit, and new against returning clients** (November 2026): a third row
+  of cards. **Profit = Sold − all ad spend** (after ad spend only, a plan in
+  full, like the session cards; the cash-in figure beside it). **Clients**
+  (`computeClientMix` in `stats.ts`): everyone who paid for something in the
+  window (a workshop payment or a course order, the rows Sold is made of, so
+  new + returning sales add up to Sold; an order that took no money makes
+  nobody a client). **Returning** = the address paid for a workshop, a course
+  or a retreat on the site before the window opened; **new** = their first
+  payment falls in it. Purchases from the Drip years are not on record, so
+  those buyers read as new, and the email says so.
+- **The pre-workshop briefing** (SD-BRIEFING, `briefing.ts`, ~5 minutes before
+  each live session; November 2026): registered, the session's own **price
+  per registration** (its row on the performance report, today's spend pulled
+  from Meta first; a failed read costs the figure, never the email), add-on
+  uptake, **where they registered** (`signup_page`: workshop page, masterclass
+  page, Heal the Healer page, direct session link, not recorded) and **every
+  country**. The three doors were taken out (Jacob).
 - **Pipeline** (weekly only): what is still to collect on open payment plans,
   what falls due in the next 30 days, and what is at risk — the
   `loadInstallmentForecast` totals, which is now the one loader behind

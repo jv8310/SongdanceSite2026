@@ -1,9 +1,9 @@
 // Pre-workshop briefing — an internal "SD-BRIEFING" ops email sent ~5 minutes
 // before each live workshop/masterclass so Jacob walks in already knowing the
-// room: how many secured a seat, the audience mix across the three doors
-// (1 healing · 2 liberation · 3 professional), and a few other signals that
-// shape how he holds the hour (practitioners present, order-bump uptake, where
-// people are joining from). NOT customer-facing; the subject is prefixed
+// room: how many secured a seat, what a registration cost in ad spend, which
+// page each seat was taken on, the order-bump uptake and every country people
+// are joining from. (The three-door audience mix was taken out in November
+// 2026 — Jacob's call.) NOT customer-facing; the subject is prefixed
 // `SD-BRIEFING ·` for inbox filtering, a sibling to the SD-ORDER / SD-REPORT
 // mails.
 //
@@ -12,31 +12,27 @@
 // pure data-gather + email render + preview sample, mirroring the SD-REPORT
 // digests in reports.ts.
 
-import {
-  audienceIsPro,
-  getProductById,
-  workshopIsMasterclass,
-  type Workshop,
-} from './db';
+import { getProductById, workshopIsMasterclass, type Workshop } from './db';
 import { formatInTz } from './time';
+import { brusselsToday, businessDayOf } from './periods';
+import { computeWorkshopPerformance, type MoneyOpts } from './stats';
 import { countryName } from './countries';
 import type { EmailContent } from './emails';
 
-// The three doors on the workshop page (see WESelector.astro) → readable names.
-// The numeric keys are exactly what `workshop_registrations.audience` stores
-// ("1", "2,3", …); door 3 is the practitioner door (audienceIsPro).
-export const AUDIENCE_DOORS: Array<{ key: string; label: string; blurb: string; color: string }> = [
-  { key: '1', label: 'Healing', blurb: 'Giving voice to something carried', color: '#A14826' },
-  { key: '2', label: 'Liberation', blurb: 'Finding more freedom in the voice', color: '#2F7D6E' },
-  { key: '3', label: 'Professional', blurb: 'Bringing the work into their own practice', color: '#4B4699' },
-];
-
-export type DoorCount = {
-  key: string;
-  label: string;
-  blurb: string;
-  color: string;
-  count: number;
+// Where a seat was taken (workshop_registrations.signup_page, see
+// signup-page.ts) → the words the briefing prints. A page nobody named keeps
+// its own path; a seat from before the column existed, or one made by hand,
+// has none.
+const PAGE_LABELS: Record<string, string> = {
+  masterclass: 'Masterclass page',
+  'heal-the-healer': 'Heal the Healer page',
+  workshop: 'Workshop page',
+  w: 'Direct session link',
+};
+const PAGE_UNKNOWN = 'Not recorded';
+export const signupPageLabel = (page: string | null | undefined): string => {
+  const key = (page ?? '').trim();
+  return key ? PAGE_LABELS[key] ?? key : PAGE_UNKNOWN;
 };
 
 export type BriefingData = {
@@ -46,52 +42,87 @@ export type BriefingData = {
   whenLocal: string; // formatted start in the workshop's display timezone
   displayTz: string;
   registered: number; // secured (paid/coupon) seats
-  doors: DoorCount[]; // per-door tallies (a registrant may pick more than one)
-  noDoor: number; // registrants who indicated no door
-  practitioners: number; // door 3 or a masterclass seat
+  // What a registration for this session cost: the prospecting ad spend its
+  // own seats pulled, day by day, ÷ its seats — the session's figure on
+  // /admin/workshops/performance. Null when no spend was charged to it, or the
+  // figure could not be worked out in time.
+  costPerRegistrationEurMinor: number | null;
+  adSpendEurMinor: number | null; // that prospecting spend, in total
   bump: { count: number; label: string | null }; // order-bump uptake (intent or bought)
-  topCountries: Array<{ country: string; count: number }>;
+  pages: Array<{ label: string; count: number }>; // where each seat was taken
+  countries: Array<{ country: string; count: number }>; // every country, most seats first
+  noCountry: number; // seats with no country on file
 };
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
 // Gather every figure for one workshop's briefing. Pure read; safe for previews.
-export async function gatherBriefingData(db: D1Database, w: Workshop): Promise<BriefingData> {
+export async function gatherBriefingData(
+  db: D1Database,
+  w: Workshop,
+  money?: MoneyOpts,
+): Promise<BriefingData> {
   const isMasterclass = await workshopIsMasterclass(db, w);
 
+  // signup_page arrived with migration 0083; read apart so the briefing never
+  // depends on it.
   const regRes = await db
     .prepare(
-      `SELECT audience, wants_bump, country
+      `SELECT id, country, created_at
          FROM workshop_registrations
         WHERE workshop_id = ? AND payment_status IN ('paid','coupon')`,
     )
     .bind(w.id)
-    .all<{ audience: string | null; wants_bump: number; country: string | null }>();
+    .all<{ id: number; country: string | null; created_at: string }>();
   const rows = regRes.results ?? [];
 
-  const doorCounts = new Map<string, number>();
-  const countryCounts = new Map<string, number>();
-  let noDoor = 0;
-  let practitioners = 0;
-  for (const r of rows) {
-    const doors = (r.audience ?? '')
-      .split(',')
-      .map((d) => d.trim())
-      .filter(Boolean);
-    if (doors.length === 0) noDoor += 1;
-    for (const d of doors) doorCounts.set(d, (doorCounts.get(d) ?? 0) + 1);
-    // A masterclass seat is a practitioner room by definition; on a regular
-    // workshop it's the practitioner door (audience 3) — same signal the
-    // post-workshop cron uses to route the certification path.
-    if (isMasterclass || audienceIsPro(r.audience)) practitioners += 1;
-    const c = (r.country ?? '').trim().toUpperCase();
-    if (c) countryCounts.set(c, (countryCounts.get(c) ?? 0) + 1);
+  const pageOf = new Map<number, string | null>();
+  try {
+    const pageRes = await db
+      .prepare(
+        `SELECT id, signup_page FROM workshop_registrations
+          WHERE workshop_id = ? AND payment_status IN ('paid','coupon')`,
+      )
+      .bind(w.id)
+      .all<{ id: number; signup_page: string | null }>();
+    for (const r of pageRes.results ?? []) pageOf.set(r.id, r.signup_page);
+  } catch {
+    // Every seat reads "Not recorded".
   }
 
-  const doors: DoorCount[] = AUDIENCE_DOORS.map((d) => ({
-    ...d,
-    count: doorCounts.get(d.key) ?? 0,
-  }));
+  const countryCounts = new Map<string, number>();
+  const pageCounts = new Map<string, number>();
+  let noCountry = 0;
+  let firstDay: string | null = null;
+  for (const r of rows) {
+    const c = (r.country ?? '').trim().toUpperCase();
+    if (c) countryCounts.set(c, (countryCounts.get(c) ?? 0) + 1);
+    else noCountry += 1;
+    const label = signupPageLabel(pageOf.get(r.id));
+    pageCounts.set(label, (pageCounts.get(label) ?? 0) + 1);
+    const day = businessDayOf(r.created_at);
+    if (day && (!firstDay || day < firstDay)) firstDay = day;
+  }
+
+  // The session's own seat price, off the performance report (one calculation
+  // for this figure site-wide), over the days its seats came in. The briefing
+  // goes out minutes before the session, so a slow or failed read costs the
+  // figure, never the email.
+  let costPerRegistrationEurMinor: number | null = null;
+  let adSpendEurMinor: number | null = null;
+  if (firstDay) {
+    try {
+      const perf = await computeWorkshopPerformance(db, { from: firstDay, to: brusselsToday(), money });
+      const row = perf.rows.find((x) => x.workshopId === w.id);
+      if (row?.costPerRegistrationEurMinor != null) {
+        costPerRegistrationEurMinor = Math.round(row.costPerRegistrationEurMinor);
+        adSpendEurMinor =
+          row.acquisitionCostEurMinor != null ? Math.round(row.acquisitionCostEurMinor) : null;
+      }
+    } catch (err) {
+      console.error(`[workshops/briefing] seat price for workshop ${w.id} failed`, err);
+    }
+  }
 
   // Order-bump uptake: either intent (wants_bump) or an actually-recorded bump
   // purchase line. Counted once per registration.
@@ -108,10 +139,18 @@ export async function gatherBriefingData(db: D1Database, w: Workshop): Promise<B
     .first<{ n: number }>();
   const bumpProduct = w.bump_product_id ? await getProductById(db, w.bump_product_id) : null;
 
-  const topCountries = [...countryCounts.entries()]
+  const countries = [...countryCounts.entries()]
     .map(([country, count]) => ({ country, count }))
-    .sort((a, b) => b.count - a.count || a.country.localeCompare(b.country))
-    .slice(0, 5);
+    .sort((a, b) => b.count - a.count || a.country.localeCompare(b.country));
+  // Named pages first, most seats first; "Not recorded" last.
+  const pages = [...pageCounts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort(
+      (a, b) =>
+        Number(a.label === PAGE_UNKNOWN) - Number(b.label === PAGE_UNKNOWN) ||
+        b.count - a.count ||
+        a.label.localeCompare(b.label),
+    );
 
   return {
     workshopId: w.id,
@@ -120,11 +159,12 @@ export async function gatherBriefingData(db: D1Database, w: Workshop): Promise<B
     whenLocal: formatInTz(w.starts_at_utc, w.display_tz),
     displayTz: w.display_tz,
     registered: rows.length,
-    doors,
-    noDoor,
-    practitioners,
+    costPerRegistrationEurMinor,
+    adSpendEurMinor,
     bump: { count: bumpRow?.n ?? 0, label: bumpProduct?.name ?? null },
-    topCountries,
+    pages,
+    countries,
+    noCountry,
   };
 }
 
@@ -150,13 +190,24 @@ const C = {
 };
 
 const pct = (n: number, total: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
+const eur = (minor: number) =>
+  '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const seatPrice = (data: BriefingData) =>
+  data.costPerRegistrationEurMinor != null ? eur(data.costPerRegistrationEurMinor) : '—';
+const seatPriceNote = (data: BriefingData) =>
+  data.costPerRegistrationEurMinor != null
+    ? `Price per registration = the prospecting ad spend this session’s own seats pulled, day by day${
+        data.adSpendEurMinor != null ? ` (${eur(data.adSpendEurMinor)})` : ''
+      }, divided by its ${data.registered} registered. Ad spend as last read from Meta.`
+    : 'Price per registration: no ad spend is charged to this session’s seats.';
+const pageBlurb = 'Seats taken on this page';
 
 function sectionLabel(text: string): string {
   return `<p style="margin:24px 0 10px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${C.faint};">${escapeHtml(text)}</p>`;
 }
 
 // A row of stat cards (label + big number).
-function statCards(cards: Array<{ label: string; value: string }>): string {
+function statCards(cards: Array<{ label: string; value: string; sub?: string }>): string {
   const cells = cards
     .map(
       (c) =>
@@ -165,6 +216,7 @@ function statCards(cards: Array<{ label: string; value: string }>): string {
             <tr><td style="padding:14px 16px;">
               <p style="margin:0 0 4px;font-size:12px;color:${C.muted};">${escapeHtml(c.label)}</p>
               <p style="margin:0;font-size:22px;font-weight:600;color:${C.ink};">${escapeHtml(c.value)}</p>
+              ${c.sub ? `<p style="margin:4px 0 0;font-size:11px;color:${C.faint};">${escapeHtml(c.sub)}</p>` : ''}
             </td></tr>
           </table>
         </td>`,
@@ -174,8 +226,7 @@ function statCards(cards: Array<{ label: string; value: string }>): string {
 }
 
 // One horizontal bar: label + blurb on the left, a filled track + count/percent
-// on the right. Width is the door's share of registrants (bars can sum past
-// 100% because a registrant may pick more than one door — noted below the chart).
+// on the right. Width is the row's share of registrants.
 function bar(label: string, blurb: string, color: string, count: number, total: number): string {
   const p = pct(count, total);
   const fill = Math.max(count > 0 ? 4 : 0, p); // keep a sliver visible for a non-zero count
@@ -201,27 +252,34 @@ function bar(label: string, blurb: string, color: string, count: number, total: 
   </tr>`;
 }
 
-function audienceSection(data: BriefingData): string {
-  const rows = data.doors.map((d) => bar(d.label, d.blurb, d.color, d.count, data.registered)).join('');
-  const noDoorRow = data.noDoor > 0 ? bar('No door indicated', 'Registered without picking one', C.faint, data.noDoor, data.registered) : '';
-  const note =
-    `<p style="margin:10px 0 0;font-size:12px;color:${C.faint};line-height:1.5;">Bars show each door's share of the ${data.registered} registered — they can total more than 100% because someone can hold more than one door.</p>`;
+const PAGE_COLOR = '#4B4699';
+
+function pagesSection(data: BriefingData): string {
+  if (data.pages.length === 0) return '';
+  const rows = data.pages
+    .map((p) =>
+      p.label === PAGE_UNKNOWN
+        ? bar(p.label, 'Added by hand, or no page sent', C.faint, p.count, data.registered)
+        : bar(p.label, pageBlurb, PAGE_COLOR, p.count, data.registered),
+    )
+    .join('');
   return (
-    sectionLabel('Audience — the three doors') +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}${noDoorRow}</table>` +
-    note
+    sectionLabel('Where they registered') +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>`
   );
 }
 
 function countriesSection(data: BriefingData): string {
-  if (data.topCountries.length === 0) return '';
-  const chips = data.topCountries
-    .map(
-      (c) =>
-        `<span style="display:inline-block;margin:0 6px 6px 0;padding:5px 10px;background:#f9fafb;border:1px solid ${C.border};border-radius:999px;font-size:13px;color:${C.ink};">${escapeHtml(countryName(c.country) || c.country)} · ${c.count}</span>`,
-    )
-    .join('');
-  return sectionLabel('Where the room is joining from') + `<div>${chips}</div>`;
+  if (data.countries.length === 0 && data.noCountry === 0) return '';
+  const chip = (text: string) =>
+    `<span style="display:inline-block;margin:0 6px 6px 0;padding:5px 10px;background:#f9fafb;border:1px solid ${C.border};border-radius:999px;font-size:13px;color:${C.ink};">${escapeHtml(text)}</span>`;
+  const chips =
+    data.countries.map((c) => chip(`${countryName(c.country) || c.country} · ${c.count}`)).join('') +
+    (data.noCountry > 0 ? chip(`No country on file · ${data.noCountry}`) : '');
+  return (
+    sectionLabel(`Where the room is joining from — ${data.countries.length} ${data.countries.length === 1 ? 'country' : 'countries'}`) +
+    `<div>${chips}</div>`
+  );
 }
 
 function renderBriefing(data: BriefingData, baseUrl: string): string {
@@ -234,7 +292,7 @@ function renderBriefing(data: BriefingData, baseUrl: string): string {
       : '—';
   const snapshot = statCards([
     { label: 'Registered', value: String(data.registered) },
-    { label: 'Practitioners', value: String(data.practitioners) },
+    { label: 'Price per registration', value: seatPrice(data), sub: 'ad spend ÷ registered' },
     { label: data.bump.label ? `Add-on · ${data.bump.label}` : 'Order add-on', value: bumpValue },
   ]);
 
@@ -257,7 +315,8 @@ function renderBriefing(data: BriefingData, baseUrl: string): string {
         </td></tr>
         <tr><td style="padding:16px 20px 0;">${snapshot}</td></tr>
         <tr><td style="padding:0 26px;">
-          ${audienceSection(data)}
+          <p style="margin:10px 0 0;font-size:12px;color:${C.faint};line-height:1.5;">${escapeHtml(seatPriceNote(data))}</p>
+          ${pagesSection(data)}
           ${countriesSection(data)}
         </td></tr>
         ${cta}
@@ -274,21 +333,20 @@ function renderBriefingText(data: BriefingData): string {
     `PRE-${kind.toUpperCase()} BRIEFING — ${data.workshopTitle}`,
     `Starting shortly · ${data.whenLocal}`,
     '',
-    `Registered: ${data.registered} · Practitioners: ${data.practitioners}`,
+    `Registered: ${data.registered} · Price per registration: ${seatPrice(data)}`,
+    `  ${seatPriceNote(data)}`,
     data.bump.count > 0
       ? `Order add-on${data.bump.label ? ` (${data.bump.label})` : ''}: ${data.bump.count} · ${pct(data.bump.count, data.registered)}%`
       : 'Order add-on: none',
-    '',
-    'AUDIENCE — THE THREE DOORS',
   ];
-  for (const d of data.doors) {
-    lines.push(`  ${d.label} (${d.blurb}): ${d.count} · ${pct(d.count, data.registered)}%`);
+  if (data.pages.length > 0) {
+    lines.push('', 'WHERE THEY REGISTERED');
+    for (const p of data.pages) lines.push(`  ${p.label}: ${p.count} · ${pct(p.count, data.registered)}%`);
   }
-  if (data.noDoor > 0) lines.push(`  No door indicated: ${data.noDoor} · ${pct(data.noDoor, data.registered)}%`);
-  lines.push('  (a registrant can hold more than one door, so shares can total over 100%)');
-  if (data.topCountries.length > 0) {
+  if (data.countries.length > 0 || data.noCountry > 0) {
     lines.push('', 'WHERE THE ROOM IS JOINING FROM');
-    for (const c of data.topCountries) lines.push(`  ${countryName(c.country) || c.country}: ${c.count}`);
+    for (const c of data.countries) lines.push(`  ${countryName(c.country) || c.country}: ${c.count}`);
+    if (data.noCountry > 0) lines.push(`  No country on file: ${data.noCountry}`);
   }
   return lines.join('\n');
 }
@@ -313,16 +371,25 @@ export function sampleBriefingData(): BriefingData {
     whenLocal: 'Mon 15 Jun 2026, 20:00 CEST',
     displayTz: 'Europe/Brussels',
     registered: 24,
-    doors: AUDIENCE_DOORS.map((d, i) => ({ ...d, count: [13, 8, 5][i] })),
-    noDoor: 3,
-    practitioners: 5,
-    bump: { count: 9, label: 'The Authentic Singing Journey' },
-    topCountries: [
-      { country: 'BE', count: 7 },
-      { country: 'NL', count: 6 },
-      { country: 'DE', count: 4 },
-      { country: 'FR', count: 3 },
-      { country: 'GB', count: 2 },
+    costPerRegistrationEurMinor: 1840,
+    adSpendEurMinor: 44160,
+    bump: { count: 9, label: 'Empowering You mantra pack' },
+    pages: [
+      { label: 'Workshop page', count: 15 },
+      { label: 'Masterclass page', count: 5 },
+      { label: 'Direct session link', count: 3 },
+      { label: PAGE_UNKNOWN, count: 1 },
     ],
+    countries: [
+      { country: 'BE', count: 6 },
+      { country: 'NL', count: 5 },
+      { country: 'US', count: 4 },
+      { country: 'DE', count: 3 },
+      { country: 'GB', count: 2 },
+      { country: 'FR', count: 1 },
+      { country: 'CA', count: 1 },
+      { country: 'AU', count: 1 },
+    ],
+    noCountry: 1,
   };
 }

@@ -632,7 +632,7 @@ export function attendedEmail2(
         'The shape is built to fit a life: <strong>18+ hours of video you take at your own pace</strong>, a <strong>weekly live hour with Jacob</strong> for questions (rotating timezones, with replays), a student community to practise with, and <strong>lifetime access</strong> to all of it.',
       ),
       D.para(
-        "It's not an eternal excavation — it's a tool you keep. Don't expect miracles; expect a real relationship with your own voice.",
+        "It's not an eternal excavation — it's a tool you keep. Expect a real relationship with your own voice.",
       ),
       D.pullQuote('Below every wound, another door.'),
       D.offerBox({
@@ -659,7 +659,7 @@ export function attendedEmail2(
   return {
     subject: 'What is below that?',
     html,
-    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nWhere the twelve weeks take you: it moves gently, one module at a time — from what sounding actually is (and how it differs from singing, toning, chanting), through hearing the feeling and the pattern inside your own voice and using sound to settle the nervous system, into the five core wounds met safely, sounding toward your own essence, and finally carrying the practice forward on your own.\n\nThe shape is built to fit a life: 18+ hours of video you take at your own pace, a weekly live hour with Jacob for questions (rotating timezones, with replays), a student community to practise with, and lifetime access to all of it.\n\nIt's not an eternal excavation — it's a tool you keep. Don't expect miracles; expect a real relationship with your own voice.\n\n${
+    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nWhere the twelve weeks take you: it moves gently, one module at a time — from what sounding actually is (and how it differs from singing, toning, chanting), through hearing the feeling and the pattern inside your own voice and using sound to settle the nervous system, into the five core wounds met safely, sounding toward your own essence, and finally carrying the practice forward on your own.\n\nThe shape is built to fit a life: 18+ hours of video you take at your own pace, a weekly live hour with Jacob for questions (rotating timezones, with replays), a student community to practise with, and lifetime access to all of it.\n\nIt's not an eternal excavation — it's a tool you keep. Expect a real relationship with your own voice.\n\n${
       ctx.promo
         ? `A practical note: the launch sale runs through ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, the regular price returns.`
         : `A practical note: your ${pct}% ends in about ${left} — ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, full price.`

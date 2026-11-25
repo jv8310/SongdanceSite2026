@@ -49,10 +49,12 @@ const detected = COUNTRIES.find((c) => c.code === country);
 const selectedCode = detected?.code ?? '';
 const selectedName = detected?.name ?? '';
 
-// Every workshop date is the same ticket price, so state it once above the list
-// rather than on each row. The pro-only masterclass entries are priced
-// differently, so they keep their own per-row price (re-shown by CSS).
-const leadTicket = items.find((it) => it.kind !== 'masterclass');
+// When every date is the same ticket price, state it once above the list rather
+// than on each row. A list that also holds masterclass dates has two prices, so
+// there every row carries its own (a €22 headline over a €44 row left the
+// workshop rows looking unpriced).
+const mixedPrices = items.some((it) => it.kind === 'masterclass');
+const leadTicket = mixedPrices ? undefined : items.find((it) => it.kind !== 'masterclass');
 // The bump card shows the "Empowering You" mantra pack (its cover is the
 // album's). Once that album plays in the app (src/lib/music/in-app.ts), the card
 // says where the buyer will find it.

@@ -890,7 +890,7 @@ Somatic Vocal Healing stands on both shoulders: the oldest instrument a human ow
 
 ## 47 · What this is not
 
-*Other headlines:* Honest small print · No miracles, on purpose · What we won't promise you · The disclaimers we mean · Read this part too · A tool, not a therapy
+*Other headlines:* Honest small print · What we won't promise you · The disclaimers we mean · Read this part too · A tool, not a therapy
 
 Somatic sounding is a tool — for self-regulation, for emotional regulation, for looking inward. It is not a therapy in itself, and it doesn't replace one.
 
@@ -906,9 +906,9 @@ It's not a singing course. It's not a sound bath. It's not screaming into the vo
 
 About the body, only this much, and honestly: some people arrive here because of something physical the doctors couldn't reach — and even if it isn't healed, changing your relationship to it can make a real difference. That's the most we'll claim, because it's the most we know.
 
-> "Don't expect miracles — expect a real relationship with your own voice."
-
 We'd rather under-promise. The work doesn't need exaggerating.
+
+*(Retired, 20 November 2026 — Jacob: the "don't expect miracles" line and its headlines are out of use, on the site and in emails. Sometimes miracles happen. Don't bring it back, in any wording; this chapter's last two sentences carry the under-promising instead.)*
 
 ---
 
@@ -1015,7 +1015,7 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 69. "For a long time, people don't dare. And then suddenly they don't care anymore, and they just make the sound."
 70. "Life is meant to be felt."
 71. "When you finally expect an ugly sound — it's the most beautiful sound."
-72. "Don't expect miracles — expect a real relationship with your own voice."
+72. *(retired 20 November 2026 — see chapter 47; the number stays so the ones after it keep theirs)*
 73. "I've never had a therapist ask me: could you make a sound for that?" *(in context only — never as a standalone line or headline)*
 74. "The car is right there. You just can't reach it yet."
 75. "It will always remain valuable to have regular check-ups with someone you trust. This is not replacing that."
@@ -1309,11 +1309,9 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 - Where words have finished, the voice can stay.
 
 ## Honesty — the under-promising register
-- No miracles, on purpose.
 - What we won't promise you.
 - Honest small print.
 - Read this part too.
-- Don't expect miracles.
 - We'd rather under-promise.
 - It doesn't always feel good first.
 - A different flavor of peace.

@@ -811,6 +811,138 @@ export async function computeCourseSales(
 }
 
 // ---------------------------------------------------------------------------
+// New and returning clients: who bought in the window, and whether they had
+// bought before it.
+//
+// A client is an email address that paid for something in the window: a
+// workshop / masterclass checkout or a course order — the same rows the Sold
+// figure is made of, valued the same way (workshop payments net of VAT, a
+// course order in full with its bumps), so new + returning sales add up to
+// Sold. An order that took no money (a coupon seat, a free pass) makes nobody
+// a client. RETURNING = the address paid for something on the site before the
+// window opened (a workshop payment, a course order or a retreat); NEW = their
+// first payment falls inside it. Purchases made before the site took payments
+// (the Drip years) are not on record here, so those buyers read as new.
+
+export type ClientMix = {
+  newClients: number;
+  returningClients: number;
+  newSalesEurMinor: number;
+  returningSalesEurMinor: number;
+};
+
+export async function computeClientMix(
+  db: D1Database,
+  opts: { from?: string | null; to?: string | null; money?: MoneyOpts } = {},
+): Promise<ClientMix> {
+  const mix: ClientMix = {
+    newClients: 0, returningClients: 0, newSalesEurMinor: 0, returningSalesEurMinor: 0,
+  };
+  const bounds = businessWindowUtc(opts.from, opts.to);
+  // "Before the window" needs a window that opens somewhere.
+  if (!bounds.start) return mix;
+  const upper = (col: string) => (bounds.end ? ` AND ${col} < ?` : '');
+  const windowBinds = bounds.end ? [bounds.start, bounds.end] : [bounds.start];
+
+  const [payRes, courseRes] = await Promise.all([
+    db
+      .prepare(
+        `SELECT p.*, lower(trim(r.email)) AS email
+           FROM workshop_payments p
+           JOIN workshop_registrations r ON r.id = p.registration_id
+          WHERE p.status = 'paid' AND p.created_at >= ?${upper('p.created_at')}`,
+      )
+      .bind(...windowBinds)
+      .all<PaymentRow & { email: string | null }>(),
+    db
+      .prepare(
+        `SELECT lower(trim(email)) AS email, product_slug, amount_cents, currency, country,
+                vat_number, payment_plan, installments_paid, installments_total,
+                refunded_amount_cents, paid_at, status, cancel_after_installment, bumps
+           FROM course_registrations
+          WHERE paid_at IS NOT NULL AND status NOT IN ('pending','expired')
+            AND paid_at >= ?${upper('paid_at')}`,
+      )
+      .bind(...windowBinds)
+      .all<CourseSaleRow & { email: string | null }>(),
+  ]);
+  const payments = payRes.results ?? [];
+  const courseRows = courseRes.results ?? [];
+  const fxRates = opts.money?.fxRates ?? (await getFxRatesToEur(db));
+  const taxRates = await resolveCourseTaxRates(courseRows, opts.money?.taxCfg);
+
+  const salesByEmail = new Map<string, number>();
+  const add = (email: string | null, eurMinor: number) => {
+    if (!email) return;
+    salesByEmail.set(email, (salesByEmail.get(email) ?? 0) + eurMinor);
+  };
+  for (const p of payments) add(p.email, netEurMinor(p, grossEurMinor(p, fxRates)).net);
+  for (const r of courseRows) {
+    const full = checkoutPartsMinor(r, contractedCycles(r));
+    const gross = full.courseMinor + full.bumps.reduce((s, b) => s + b.amount_cents, 0);
+    add(r.email, courseNetEur(gross, r, taxRates, fxRates).eurMinor);
+  }
+  if (salesByEmail.size === 0) return mix;
+
+  // Who of them paid for something before the window opened. Each query is
+  // narrowed in SQL to the window's own buyers, so no id list is ever bound.
+  const buyers = `(
+      SELECT lower(trim(r2.email)) FROM workshop_payments p2
+        JOIN workshop_registrations r2 ON r2.id = p2.registration_id
+       WHERE p2.status = 'paid' AND p2.created_at >= ?${upper('p2.created_at')}
+      UNION
+      SELECT lower(trim(email)) FROM course_registrations
+       WHERE paid_at IS NOT NULL AND paid_at >= ?${upper('paid_at')})`;
+  const priorBinds = [bounds.start, ...windowBinds, ...windowBinds];
+  const prior = await Promise.all([
+    db
+      .prepare(
+        `SELECT DISTINCT lower(trim(r.email)) AS email
+           FROM workshop_payments p
+           JOIN workshop_registrations r ON r.id = p.registration_id
+          WHERE p.status IN ('paid','refunded') AND p.created_at < ?
+            AND lower(trim(r.email)) IN ${buyers}`,
+      )
+      .bind(...priorBinds)
+      .all<{ email: string }>(),
+    db
+      .prepare(
+        `SELECT DISTINCT lower(trim(email)) AS email
+           FROM course_registrations
+          WHERE paid_at IS NOT NULL AND status NOT IN ('pending','expired')
+            AND amount_cents > 0 AND paid_at < ?
+            AND lower(trim(email)) IN ${buyers}`,
+      )
+      .bind(...priorBinds)
+      .all<{ email: string }>(),
+    db
+      .prepare(
+        `SELECT DISTINCT lower(trim(email)) AS email
+           FROM registrations
+          WHERE paid_at IS NOT NULL AND amount_cents > 0 AND paid_at < ?
+            AND lower(trim(email)) IN ${buyers}`,
+      )
+      .bind(...priorBinds)
+      .all<{ email: string }>(),
+  ]);
+  const returning = new Set<string>();
+  for (const res of prior) for (const row of res.results ?? []) returning.add(row.email);
+
+  for (const [email, eurMinor] of salesByEmail) {
+    // An order that took no money makes nobody a client.
+    if (eurMinor <= 0) continue;
+    if (returning.has(email)) {
+      mix.returningClients += 1;
+      mix.returningSalesEurMinor += eurMinor;
+    } else {
+      mix.newClients += 1;
+      mix.newSalesEurMinor += eurMinor;
+    }
+  }
+  return mix;
+}
+
+// ---------------------------------------------------------------------------
 // One course product's sales, order by order: what the Forgiveness box on /ads
 // and /admin/stats reads (lib/ads/forgiveness-report.ts). Valued exactly like
 // computeCourseSales — net of VAT per country, live FX, refunds off, a plan in

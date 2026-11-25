@@ -723,7 +723,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       group: 'Reports (internal)',
       label: 'SD-BRIEFING — pre-workshop roster',
       timing: 'About 5 minutes before each live workshop/masterclass',
-      audience: 'Jacob (BRIEFING_TO) — registered count, the three-door audience mix, practitioners, add-on uptake, countries',
+      audience: 'Jacob (BRIEFING_TO) — registered count, price per registration, the page each seat was taken on, add-on uptake, every country',
       content: buildBriefingEmail(sampleBriefingData(), b),
     },
   ];
