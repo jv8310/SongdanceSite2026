@@ -687,7 +687,7 @@ November"). Jacob, 25 Nov 2026.
   which every email excludes. One segment each, first that fits: `bfcm:cert` (holds the
   certification: no email), `bfcm:recent` (a live pass paid in the 30 days before: no email),
   `bfcm:12w-early` (12-week course, week 1 to 6), `bfcm:12w-late` (week 7 to 12),
-  `bfcm:12w-ended` (over, or bought before the site so undated), `bfcm:german` (German course
+  `bfcm:12w-ended` (over, or bought before the site so undated: the Drip tag or the app's `app:course:svh-12week`; the app's `app:course:cc-cert` likewise counts as holding the certification), `bfcm:german` (German course
   or workshop only: no email), `bfcm:workshop` (a seat on the site or the Drip years' workshop
   tags, no course). All of them carry `bfcm:known`; the first segment is **the whole list
   minus `bfcm:known`** (so buyers of the other courses only are in it).

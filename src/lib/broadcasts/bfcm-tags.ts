@@ -21,8 +21,9 @@
 //   bfcm:12w-late    on the 12-week course, week 7 to 12: the certification
 //                    course at half price, or a live pass at 20% off.
 //   bfcm:12w-ended   did the 12-week course, its 12 weeks are over (or it was
-//                    bought before the site took payments, so no date): the
-//                    same two offers.
+//                    bought before the site took payments, so no date: the Drip
+//                    tag, or the member app says they can open it): the same
+//                    two offers.
 //   bfcm:german      the German 12-week course or workshop only. No offer: the
 //                    emails are in English and their certification price is its
 //                    own (path.ts).
@@ -85,9 +86,12 @@ const WORKSHOP_TAGS = [
   'svh_workshop_live',
   'svh_masterclass_live',
 ];
-const TWELVE_WEEK_TAG = 'prod_svh_12w';
-const CERT_TAGS = ['prod_svh_9m', 'prod_ceee-25'];
-const GERMAN_TAGS = ['prodg_svh_12w', 'm26g_svh_workshop', 'm26g_svh_workshop_again'];
+// The member app's own tags count beside Drip's (app-tags.ts): most students
+// from the Mighty Networks years carry no Drip product tag on the list, but the
+// app knows which course they can open.
+const TWELVE_WEEK_TAGS = ['prod_svh_12w', 'app:course:svh-12week'];
+const CERT_TAGS = ['prod_svh_9m', 'prod_ceee-25', 'app:course:cc-cert'];
+const GERMAN_TAGS = ['prodg_svh_12w', 'm26g_svh_workshop', 'm26g_svh_workshop_again', 'app:course:svh-12week-de'];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHUNK = 400;
@@ -223,7 +227,7 @@ async function loadInput(db: D1Database): Promise<BfcmInput> {
     ).map(clean),
   );
   const dated = new Set(twelveWeek.map(([e]) => e));
-  for (const e of await emails(db, `SELECT email AS e FROM contact_tags WHERE lower(tag) = '${TWELVE_WEEK_TAG}'`)) {
+  for (const e of await emails(db, `SELECT DISTINCT email AS e FROM contact_tags WHERE lower(tag) IN (${inList(TWELVE_WEEK_TAGS)})`)) {
     if (!dated.has(clean(e)) && !twelveSince.has(clean(e))) twelveWeek.push([e, null]);
   }
 
