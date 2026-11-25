@@ -843,7 +843,10 @@ anyone whose course no longer includes them (or never did). Logic in
   link in its confirmation email (`/courses/live-pass/manage?t=…`,
   [`live-pass-manage-link.ts`](src/lib/courses/live-pass-manage-link.ts),
   `sd-lpm:`), sent again to the inbox on the order from "Manage my monthly pass" on the
-  pass page — never shown on screen. Stripe gets `cancel_at_period_end` (and can
+  pass page — never shown on screen. That button sits in the personal panel of
+  the registration card, only for an address that has a monthly (running, agreed
+  for later, or cancelled with its month still to run); the separate box with its
+  own email field went in November 2026, since the card asks for the address first. Stripe gets `cancel_at_period_end` (and can
   be taken back while the month runs); PayPal is cancelled at once; either way the
   app keeps the sessions open to `paid_through`. **An admin can do the same for
   them** from the order page (`/admin/orders/C-<id>`, where a plan's Stop control

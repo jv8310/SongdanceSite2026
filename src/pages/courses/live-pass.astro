@@ -93,6 +93,8 @@ const datesLine = (m: number) => {
   return startsOn && startsOn > today && !initialStatus?.pass_running ? `From ${fmtDay(startsOn)} · ${until.charAt(0).toLowerCase()}${until.slice(1)}` : until;
 };
 const monthlyRunning = !!initialStatus?.monthly_running;
+// A monthly of theirs, running, agreed for later, or cancelled with its month still to run.
+const hasMonthly = monthlyRunning || !!initialStatus?.monthly_until;
 const startMonthly = chosenMonthly && !monthlyRunning;
 // A monthly taken now starts when the live sessions they already have end
 // (planMonthlyStart: this site's dates and the member app's), first charged then.
@@ -259,7 +261,7 @@ const faq: { q: string; a: string }[] = [
   },
   {
     q: 'How do I cancel the monthly?',
-    a: 'Any time, in two clicks, from the link in its confirmation email (or ask for the link under “Manage my monthly pass” above). Nothing more is charged, and the sessions stay open until the end of the month you have already paid for.',
+    a: 'Any time, in two clicks, from the link in its confirmation email (or enter your email under “Choose your pass” and press “Manage my monthly pass”). Nothing more is charged, and the sessions stay open until the end of the month you have already paid for.',
   },
 ];
 ---
@@ -465,6 +467,15 @@ const faq: { q: string; a: string }[] = [
                   </li>
                 ))}
               </ul>
+              {/* Their monthly: the link to see or cancel it goes to this address, never on screen. */}
+              <div class="lp-manage" id="manage" data-lp-manage hidden={!hasMonthly}>
+                <button type="button" class="lp-manage-btn" data-lp-manage-btn>
+                  <i class="ph-light ph-envelope-simple" aria-hidden="true"></i> Manage my monthly pass
+                </button>
+                <span class="lp-manage-hint" data-lp-manage-msg role="status">
+                  We email you the link to see when it renews, or to cancel it.
+                </span>
+              </div>
             </div>
 
             <div class="lp-toggle" role="group" aria-label="How would you like to pay?">
@@ -526,7 +537,7 @@ const faq: { q: string; a: string }[] = [
                       {monthlyStartsOn ? `Starts ${fmtDay(monthlyStartsOn)} — nothing charged until then` : ''}
                     </span>
                     <span class="lp-plan-dates" data-lp-monthly-note hidden={!monthlyRunning}>
-                      {monthlyRunning ? 'You already have a monthly — manage it below.' : ''}
+                      {monthlyRunning ? 'You already have a monthly — see “Manage my monthly pass” above.' : ''}
                     </span>
                   </span>
                   {/* Leads with what it costs a month; the first month's higher price sits under it. */}
@@ -638,28 +649,6 @@ const faq: { q: string; a: string }[] = [
       </div>
     </section>
 
-    <section class="lp-narrow lp-card lp-manage" id="manage" aria-labelledby="lp-manage-title">
-      <h2 class="lp-h3" id="lp-manage-title"><i class="ph-light ph-repeat" aria-hidden="true"></i> Manage my monthly pass</h2>
-      <p>
-        To see when your monthly renews, or to cancel it, use the link in its confirmation email.
-        Lost it? Enter the address you pay with and we'll send it there again.
-      </p>
-      <form class="lp-manage-form" data-lp-manage novalidate>
-        <input
-          type="email"
-          name="email"
-          autocomplete="email"
-          required
-          maxlength="254"
-          placeholder="you@example.com"
-          aria-label="Your email address"
-          value={emailPrefill || undefined}
-        />
-        <button type="submit" class="sd-btn sd-btn-primary">Send me the link</button>
-      </form>
-      <p class="lp-manage-msg" role="status" data-lp-manage-msg hidden></p>
-    </section>
-
     <section class="lp-narrow lp-faq" aria-labelledby="lp-faq-title">
       <h2 class="lp-h2" id="lp-faq-title">Good to know</h2>
       {faq.map((q) => (
@@ -731,6 +720,10 @@ const faq: { q: string; a: string }[] = [
     const accessHead = form.querySelector<HTMLElement>('[data-lp-access-head]')!;
     const accessNote = form.querySelector<HTMLElement>('[data-lp-access-note]')!;
     const accessList = form.querySelector<HTMLElement>('[data-lp-access-list]')!;
+    const manageEl = form.querySelector<HTMLElement>('[data-lp-manage]')!;
+    const manageBtn = form.querySelector<HTMLButtonElement>('[data-lp-manage-btn]')!;
+    const manageMsg = form.querySelector<HTMLElement>('[data-lp-manage-msg]')!;
+    const MANAGE_HINT = manageMsg.textContent ?? '';
     const modeButtons = Array.from(form.querySelectorAll<HTMLButtonElement>('[data-lp-mode]'));
     const panels = Array.from(form.querySelectorAll<HTMLElement>('[data-lp-panel]'));
     const passInputs = Array.from(form.querySelectorAll<HTMLInputElement>('[name="months"]')).filter((r) => r.value !== 'monthly');
@@ -773,6 +766,8 @@ const faq: { q: string; a: string }[] = [
     function renderAccess() {
       const a = status?.access;
       accessEl.hidden = !a;
+      manageEl.hidden = !(status?.monthly_running || status?.monthly_until);
+      manageMsg.textContent = MANAGE_HINT;
       if (!a) return;
       accessHead.textContent = a.headline;
       accessNote.hidden = !a.note;
@@ -854,7 +849,7 @@ const faq: { q: string; a: string }[] = [
       if (running) monthlyInput.checked = false;
       else if (monthly) monthlyInput.checked = true;
       monthlyNote.hidden = !running;
-      monthlyNote.textContent = running ? 'You already have a monthly — manage it below.' : '';
+      monthlyNote.textContent = running ? 'You already have a monthly — see “Manage my monthly pass” above.' : '';
       buttons.forEach((b) => (b.disabled = running && monthly));
 
       // The day each pass would start, and the add-on's verdict, once the
@@ -1013,6 +1008,24 @@ const faq: { q: string; a: string }[] = [
     );
     modeButtons.forEach((b) => b.addEventListener('click', () => setMode(b.dataset.lpMode === 'monthly' ? 'monthly' : 'pass')));
     addonInput.addEventListener('change', repaint);
+    // "Manage my monthly pass": the link goes to the inbox on the order, never on screen.
+    manageBtn.addEventListener('click', async () => {
+      const email = lookedUp || emailInput.value.trim().toLowerCase();
+      manageBtn.disabled = true;
+      try {
+        const res = await fetch('/api/courses/live-pass-manage-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+        manageMsg.textContent = res.ok ? `The link is on its way to ${email}.` : data.error || 'Please try again in a minute.';
+      } catch {
+        manageMsg.textContent = 'We could not reach the server. Please try again.';
+      } finally {
+        manageBtn.disabled = false;
+      }
+    });
     lookupBtn.addEventListener('click', () => void lookUp(true));
     emailInput.addEventListener('change', () => void lookUp());
     emailInput.addEventListener('keydown', (e) => {
@@ -1073,36 +1086,6 @@ const faq: { q: string; a: string }[] = [
     });
   }
 
-  // "Manage my monthly pass": the link goes to the inbox on the order, never on screen.
-  const manage = document.querySelector<HTMLFormElement>('[data-lp-manage]');
-  const manageMsg = document.querySelector<HTMLElement>('[data-lp-manage-msg]');
-  if (manage && manageMsg) {
-    manage.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const input = manage.querySelector<HTMLInputElement>('[name="email"]')!;
-      const button = manage.querySelector<HTMLButtonElement>('button')!;
-      const email = input.value.trim().toLowerCase();
-      const say = (text: string) => {
-        manageMsg.textContent = text;
-        manageMsg.hidden = false;
-      };
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return say('Please enter a valid email address.');
-      button.disabled = true;
-      try {
-        const res = await fetch('/api/courses/live-pass-manage-link', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
-        const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
-        say(data.message || data.error || 'Please try again in a minute.');
-      } catch {
-        say('We could not reach the server. Please try again.');
-      } finally {
-        button.disabled = false;
-      }
-    });
-  }
 </script>
 
 <style>
@@ -1364,16 +1347,18 @@ const faq: { q: string; a: string }[] = [
     .lp-upgrade { grid-template-columns: 0.9fr 1.1fr; gap: 48px; padding: 48px; align-items: start; }
   }
 
-  .lp-manage { margin-bottom: 64px; }
-  .lp-manage .lp-h3 { display: flex; align-items: center; gap: 10px; }
-  .lp-manage .lp-h3 i { color: var(--plum); }
-  .lp-manage p { line-height: 1.6; margin: 0 0 14px; color: var(--ink-soft); }
-  .lp-manage-form { display: flex; flex-wrap: wrap; gap: 10px; }
-  .lp-manage-form input {
-    flex: 1 1 220px; font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 10px;
-    border: 1px solid rgba(42, 27, 42, 0.2); background: #fff; color: var(--ink);
+  .lp-manage {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(92, 106, 74, 0.25); scroll-margin-top: 96px;
   }
-  .lp-manage-msg { margin: 12px 0 0 !important; font-size: 15px; }
+  .lp-manage-btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--plum); background: transparent; color: var(--plum); font: inherit; font-size: 14.5px; font-weight: 500;
+  }
+  .lp-manage-btn:hover { background: var(--plum); color: var(--paper); }
+  .lp-manage-btn:disabled { opacity: 0.6; cursor: default; }
+  .lp-manage-btn i { font-size: 18px; }
+  .lp-manage-hint { font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
 
   .lp-faq .lp-h2 { text-align: center; margin-bottom: 20px; }
   .lp-faq-item { border-bottom: 1px solid var(--line); }
