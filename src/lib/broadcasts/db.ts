@@ -446,6 +446,26 @@ function criteriaOf(b: Broadcast | AudienceCriteria): AudienceCriteria {
   return b;
 }
 
+// The audience in plain words, for the Send box and the launch question:
+// "everyone on the list · not tagged prod_forgiveness · opened or clicked an
+// email in the last 90 days".
+export function describeAudience(criteria: AudienceCriteria): string {
+  const include = splitTags(criteria.includeTags);
+  const exclude = splitTags(criteria.excludeTags);
+  const field = (criteria.field ?? '').trim();
+  const days = normalizeEngagedDays(criteria.engagedDays);
+  const parts = [include.length ? `tagged ${include.join(' or ')}` : 'everyone on the list'];
+  if (exclude.length) parts.push(`not tagged ${exclude.join(', ')}`);
+  if (field) parts.push(`${field} = ${(criteria.fieldValue ?? '').trim()}`);
+  if (days) parts.push(`opened or clicked an email in the last ${days} days`);
+  return parts.join(' · ');
+}
+
+// The saved audience of a broadcast: what a launch snapshots.
+export function broadcastCriteria(b: Broadcast): AudienceCriteria {
+  return criteriaOf(b);
+}
+
 // How many contacts match these criteria right now (minus suppressions).
 export async function countAudience(db: D1Database, criteria: AudienceCriteria): Promise<number> {
   try {
