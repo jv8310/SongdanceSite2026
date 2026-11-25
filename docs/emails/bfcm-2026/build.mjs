@@ -5,8 +5,8 @@
 //
 // writes <audience>-<n>-<slug>.html (the broadcast body, format "html") and
 // .txt (its plain-text part) next to this file, and
-// migrations/0102_bfcm_broadcasts.sql, which seeds the fifteen as DRAFTS (by
-// name, so running it twice adds nothing). Once the drafts exist, a change to
+// migrations/0103_bfcm_broadcasts_more_content.sql, which writes them into the
+// fifteen DRAFTS that migration 0102 seeded (by name, only while still a draft). Once the drafts exist, a change to
 // the words is made HERE, built, and saved into the draft again (Claude's
 // broadcast_save, format html, with bodyText).
 //
@@ -55,8 +55,40 @@ const eyebrow = (t) =>
 const h1 = (t) => `<h1 class="h1" style="${S}font-weight:400;font-size:42px;line-height:1.12;color:#2A1B2A;margin:0 0 28px;">${t}</h1>`;
 const p = (t, last = false) => `<p style="${F}font-size:16px;line-height:1.7;color:#2A1B2A;margin:0 0 ${last ? 0 : 16}px;">${t}</p>`;
 // One offer: a plum box with what it is, the two prices and its button.
-const offer = ({ label, head, body, was, now, per = '', cta, href, note }) =>
-  `<tr><td class="pad" style="padding:26px 44px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#4A2540;border-radius:4px;"><tr><td class="pad" style="padding:34px 36px 32px;"><p style="margin:0 0 14px;${F}font-size:11px;letter-spacing:2.5px;color:#E7C9B8;font-weight:600;text-transform:uppercase;">${label}</p><h2 class="offer-h" style="${S}font-weight:400;font-size:29px;line-height:1.2;color:#F4ECDF;margin:0 0 14px;">${head}</h2><p style="${F}font-size:15px;line-height:1.7;color:#EADFCB;margin:0 0 18px;">${body}</p><p style="${S}font-size:30px;line-height:1.2;color:#F4ECDF;margin:0;"><span style="font-size:19px;color:#C9B4C3;text-decoration:line-through;">${was}</span>&nbsp; ${now}<span style="${F}font-size:14px;color:#C9B4C3;"> ${per}</span></p><table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 12px;"><tr><td style="background-color:#F4ECDF;border-radius:32px;"><a href="${href}" style="display:inline-block;${F}font-size:15px;font-weight:600;letter-spacing:0.3px;color:#4A2540;padding:15px 32px;text-decoration:none;">${cta} &rarr;</a></td></tr></table><p style="${F}font-size:13px;line-height:1.6;color:#C9B4C3;margin:0;">${note}</p></td></tr></table></td></tr>`;
+const priceLines = (lines) =>
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #6B4560;">${lines
+    .map(
+      ([len, holds, was, now]) =>
+        `<tr><td style="padding:11px 0;border-top:1px solid #6B4560;vertical-align:top;"><p style="${S}font-size:18px;line-height:1.3;color:#F4ECDF;margin:0;">${len}</p><p style="${F}font-size:13px;line-height:1.5;color:#C9B4C3;margin:2px 0 0;">${holds}</p></td><td align="right" style="padding:11px 0;border-top:1px solid #6B4560;vertical-align:top;text-align:right;"><p style="${S}font-size:18px;line-height:1.3;color:#F4ECDF;margin:0;">${now}</p><p style="${F}font-size:13px;line-height:1.5;color:#C9B4C3;margin:2px 0 0;text-decoration:line-through;">${was}</p></td></tr>`,
+    )
+    .join('')}</table>`;
+const offer = ({ label, head, body, was, now, per = '', lines, cta, href, note }) =>
+  `<tr><td class="pad" style="padding:26px 44px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#4A2540;border-radius:4px;"><tr><td class="pad" style="padding:34px 36px 32px;"><p style="margin:0 0 14px;${F}font-size:11px;letter-spacing:2.5px;color:#E7C9B8;font-weight:600;text-transform:uppercase;">${label}</p><h2 class="offer-h" style="${S}font-weight:400;font-size:29px;line-height:1.2;color:#F4ECDF;margin:0 0 14px;">${head}</h2><p style="${F}font-size:15px;line-height:1.7;color:#EADFCB;margin:0 0 18px;">${body}</p>${lines ? priceLines(lines) : `<p style="${S}font-size:30px;line-height:1.2;color:#F4ECDF;margin:0;"><span style="font-size:19px;color:#C9B4C3;text-decoration:line-through;">${was}</span>&nbsp; ${now}<span style="${F}font-size:14px;color:#C9B4C3;"> ${per}</span></p>`}<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 12px;"><tr><td style="background-color:#F4ECDF;border-radius:32px;"><a href="${href}" style="display:inline-block;${F}font-size:15px;font-weight:600;letter-spacing:0.3px;color:#4A2540;padding:15px 32px;text-decoration:none;">${cta} &rarr;</a></td></tr></table><p style="${F}font-size:13px;line-height:1.6;color:#C9B4C3;margin:0;">${note}</p></td></tr></table></td></tr>`;
+// A section between the letter and the offers: a heading, then either titled
+// rows (a list from the course's own page) or paragraphs.
+const h2 = (t) => `<h2 class="offer-h" style="${S}font-weight:400;font-size:27px;line-height:1.22;color:#2A1B2A;margin:0 0 18px;">${t}</h2>`;
+const section = ({ h, intro, items, paras }) =>
+  row(
+    h2(h) +
+      (intro ? p(intro) : '') +
+      (items
+        ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #E2D5C1;">${items
+            .map(
+              ([title, body]) =>
+                `<tr><td style="padding:14px 0 15px;border-top:1px solid #E2D5C1;"><p style="${S}font-size:18px;line-height:1.35;color:#2A1B2A;margin:0 0 ${body ? 5 : 0}px;">${title}</p>${body ? `<p style="${F}font-size:15px;line-height:1.65;color:#4A3848;margin:0;">${body}</p>` : ''}</td></tr>`,
+            )
+            .join('')}</table>`
+        : '') +
+      (paras ? (items ? '<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>' : '') + paras.map((t, j) => p(t, j === paras.length - 1)).join('') : ''),
+    '34px 44px 6px',
+  );
+const sectionText = ({ h, intro, items, paras }) =>
+  [
+    plain(h).toUpperCase(),
+    ...(intro ? [plain(intro)] : []),
+    ...(items ? [items.map(([t, bd]) => `- ${plain(t)}${bd ? `: ${plain(bd)}` : ''}`).join('\n')] : []),
+    ...(paras ? paras.map(plain) : []),
+  ].join('\n\n');
 const signoff = (ps, close = 'With love,') =>
   row(
     `<p style="${C}font-size:20px;line-height:1.5;color:#4A3848;margin:0 0 28px;">${close}<br>Jacob</p>${ps ? `<p style="${F}font-size:15px;line-height:1.7;color:#4A3848;margin:0;"><strong style="font-weight:600;color:#2A1B2A;">P.S.</strong> ${ps}</p>` : ''}`,
@@ -156,10 +188,17 @@ const OFFERS = {
     page: 'pass',
     label: 'The live pass &middot; 20% off',
     head: 'Back into the live sessions',
-    body: `The weekly Q&amp;As and the monthly deepening session, for 1, 3 or 6 months. Three months is 12 Q&amp;As and 3 deepening sessions: &euro;105 instead of &euro;132. Six months: &euro;187 instead of &euro;234. ${starts}`,
-    was: '&euro;52', now: '&euro;41', per: 'for one month', cta: 'Choose a live pass', href: url('pass', c),
-    note: CUR,
-    text: `THE LIVE PASS, 20% OFF\nThe weekly Q&As and the monthly deepening session.\n1 month (4 Q&As, 1 deepening session): EUR 41 instead of EUR 52\n3 months (12 Q&As, 3 deepening sessions): EUR 105 instead of EUR 132\n6 months (24 Q&As, 6 deepening sessions): EUR 187 instead of EUR 234\n${starts.replace(/&rsquo;/g, "'")}`,
+    body: `The weekly Q&amp;A, one live hour, and the monthly deepening session, two hours on one theme. ${starts}`,
+    lines: [
+      ['1 month', '4 Q&amp;As, 1 deepening session', '&euro;52', '&euro;41'],
+      ['3 months', '12 Q&amp;As, 3 deepening sessions', '&euro;132', '&euro;105'],
+      ['6 months', '24 Q&amp;As, 6 deepening sessions', '&euro;234', '&euro;187'],
+      ['12 months', '48 Q&amp;As, 12 deepening sessions', '&euro;436', '&euro;348'],
+      ['Monthly', 'every session while it runs, cancel any time', '&euro;52, then &euro;44', '&euro;41.60, then &euro;35.20, then &euro;44'],
+    ],
+    cta: 'Choose a live pass', href: url('pass', c),
+    note: 'The monthly is 20% off for its first two months. ' + CUR,
+    text: `THE LIVE PASS, 20% OFF\nThe weekly Q&A, one live hour, and the monthly deepening session, two hours on one theme.\n1 month (4 Q&As, 1 deepening session): EUR 41 instead of EUR 52\n3 months (12 Q&As, 3 deepening sessions): EUR 105 instead of EUR 132\n6 months (24 Q&As, 6 deepening sessions): EUR 187 instead of EUR 234\n12 months (48 Q&As, 12 deepening sessions): EUR 348 instead of EUR 436\nMonthly, cancel any time: EUR 41.60 the first month, EUR 35.20 the second (20% off both), then EUR 44 a month\n${starts.replace(/&rsquo;/g, "'")}`,
   }),
 };
 const BEGINS_AFTER = 'You already have the foundation, so you take it on its own.';
@@ -293,7 +332,7 @@ const AUDIENCES = [
           'What ended is the live part: the weekly hour together, the questions, hearing each other. Sounding alone is one thing. Being heard changes the sound.',
           `Through ${UNTIL} there are two ways back in, both at a price I don&rsquo;t usually offer.`,
         ],
-        ps: 'Not sure which? The pass brings back the live sessions. The certification course brings them back for nine months and teaches you to hold space for someone else.',
+        ps: 'Not sure which? The pass brings back the live sessions, for one month or a whole year. The certification course brings them back for nine months and teaches you to hold space for someone else.',
       },
       {
         slug: 'back-to-the-circle',
@@ -416,6 +455,139 @@ const AUDIENCES = [
   },
 ];
 
+
+// ---- more to read, per email: taken from the pages the email leads to, so
+// each of the three says something of its own (Jacob, 25 Nov 2026). Keyed by
+// audience key + email number.
+const WORKSHOP_BEATS = [
+  ['An introduction to Somatic Vocal Healing', 'The method where sound becomes the language of the body: a closer connection to your body, your own sound, and whatever wants to show up underneath.'],
+  ['A somatic warm-up with live piano', 'So your nervous system can arrive before anything else happens. Settling, breath widening, listening getting finer.'],
+  ['Guided sounding', 'A somatic practice of giving what&rsquo;s here a sound. Not describing it: sounding it.'],
+  ['A first tool for everyday life', 'Something to keep coming back to, when something in you is stuck, when your head is too loud, when the day has made you shut down.'],
+];
+const WORKSHOP_QUESTIONS = [
+  ['&ldquo;Do I need to be able to sing?&rdquo;', 'No. You don&rsquo;t need a good voice, you need your honest one. You cannot do it wrong; it will always express something.'],
+  ['&ldquo;Will I have to scream?&rdquo;', 'No. We don&rsquo;t go to screaming. One tone, the tone of what&rsquo;s there. That&rsquo;s the whole instruction.'],
+  ['&ldquo;What about the neighbours?&rdquo;', 'The most common question in this work. Soft counts, and soft often counts double. A hum is a complete practice. Some people start in their car or their bathroom. Your microphone stays off unless you want it on.'],
+  ['&ldquo;Is this a sound bath?&rdquo;', 'No. In a sound bath someone makes sound for you. Here you are the one sounding. Nobody does it to you, because nobody can.'],
+  ['&ldquo;Is it safe if I&rsquo;m holding a lot of pain?&rdquo;', 'The voice will never force you. In our experience it seldom brings up more than you can be with. Seldom is not never, which is why volume is yours to set and stopping is always allowed. And this doesn&rsquo;t replace therapy. It was never intended to.'],
+];
+const MASTERCLASS_BEATS = [
+  ['The practice, in your own body', 'A guided sounding practice, and the question under the whole method: what is below that? Your own body is the only place this work can be understood from.'],
+  ['Why the sound has to be theirs', 'Most sound work makes sound for you. This is the reverse: the person makes the sound of what&rsquo;s actually there.'],
+  ['Your role while they sound', 'Keep the room steady, ask the next honest question, and get out of the way. Present without fixing, steering, or taking it on.'],
+  ['Where it fits in your work, and where it doesn&rsquo;t', 'It layers onto what you already do; it doesn&rsquo;t replace it. This is not therapy, and it doesn&rsquo;t replace yours.'],
+];
+const TWELVE_ABLE = [
+  ['Find and sound a stuck feeling', 'instead of mentally trying to manage it, or waiting for it to pass.'],
+  ['Work with your nervous system', 'not against it.'],
+  ['Hear what your voice is telling you', 'fear, anger, grief, purpose, even older echoes.'],
+  ['Hold a steady, grounded space for sounding', 'first for yourself, eventually for others.'],
+  ['Keep practising on your own', 'for life.'],
+];
+const TWELVE_MODULES = [
+  ['1 &middot; Understanding vocal sound', 'Singing, toning, chanting, sounding, and why this practice is its own thing.'],
+  ['2 &middot; Becoming comfortable', 'Meeting the collective unease around using the voice.'],
+  ['3 &middot; Holding space', 'Steady, grounded footing for sound work, for yourself and others.'],
+  ['4 &middot; Reading your sound', 'Hearing the feeling and the pattern inside the voice.'],
+  ['5 &middot; Neuroanatomy', 'The brain, the body and the voice, in plain terms.'],
+  ['6 &middot; Nervous system flow', 'Using sound to regulate and settle.'],
+  ['7 &middot; The five core wounds', 'Rejection, abandonment, betrayal, humiliation, injustice. Met at your own pace, through sound.'],
+  ['8 &middot; Sounding toward essence', 'A meditation that listens toward your own essential sound.'],
+  ['9 &middot; Sounds of the chakras', 'The energy centres, explored through tone.'],
+  ['10 &middot; Sounding with instruments', 'Voice with drum, shruti, or singing bowl.'],
+  ['11 &middot; Practising with others', 'First steps in sounding together.'],
+  ['12 &middot; Self-healing &amp; integration', 'Carrying the practice forward on your own.'],
+];
+const CERT_INCLUDES = [
+  ['The complete class library', 'Every module with a detailed written manual, self-paced from the moment you join.'],
+  ['A live Q&amp;A every week, for nine months', 'A live hour with me, and on some weeks with Karen Evans, co-facilitator on the course.'],
+  ['A two-hour deepening session every month', 'With the wider community of practitioners, every one recorded into the library.'],
+  ['Practice Together', 'Sessions to give and receive with fellow students. The quiet heart of the course.'],
+  ['The SVH app', 'To record and revisit your own sounds, train your ear, and keep practising between sessions.'],
+  ['My feedback on your session', 'When you apply for certification you send a video of a session you lead, and I answer it personally.'],
+];
+const CERT_LEARN = [
+  ['To travel through the layers of a sound', 'How to recognise feelings in a voice (high, low, trembling, sharp), how to follow what is underneath the first sound, and how to guide a whole session from beginning to end.'],
+  ['The emotions underneath', 'Anger, fear, pain and grief. How each one moves, how it disguises itself, and how to meet it through the voice.'],
+  ['Listening with the body', 'Telling grief from pain, fear from overwhelm. Hearing what the voice is almost saying.'],
+  ['Skills for holding the space', 'Pacing. Regulation. The volume button. Knowing when to lead, when to hold, and when to let the silence do the work.'],
+];
+const LIVE_WHAT = [
+  ['The weekly Q&amp;A', 'A live hour. This is where the smaller, in-between questions are met, where you bring what came up in a practice and we look at it together. Each replay stays available for two months.'],
+  ['The monthly deepening session', 'Two hours on one theme, with the wider community of practitioners.'],
+];
+const CERT_NOT = 'A note on what it is not: it is not a comprehensive training to become a therapist, coach or psychologist. It is a course in Somatic Vocal Healing specifically. If you mean to work with clients professionally, you should already have a background in holding space.';
+const MORE = {
+  'a-new1': [{ h: `What happens in ${em('seventy minutes')}`, items: WORKSHOP_BEATS }],
+  'a-new2': [
+    { h: `The questions, ${em('answered plainly')}`, items: WORKSHOP_QUESTIONS },
+    { h: `And the masterclass: ${em('a hundred minutes')}`, intro: 'If you work with people, this is the longer session. First you feel it. Then we look at how it works.', items: MASTERCLASS_BEATS },
+  ],
+  'a-new3': [
+    {
+      h: `Most of us learned early ${em('to be quiet.')}`,
+      paras: [
+        'To stay safe. To belong. To not take up too much space. Over time that becomes a body that&rsquo;s holding a lot. Tension. A tight throat.',
+        'Nothing in you is broken. It just hasn&rsquo;t been heard yet. That is all the workshop is: seventy minutes of hearing it.',
+      ],
+    },
+  ],
+  'b-workshop1': [{ h: `After twelve weeks, ${em('you can')}`, items: TWELVE_ABLE }],
+  'b-workshop2': [
+    { h: `Twelve modules, ${em('one practice')}`, intro: 'What the 12-week course walks through, at your own pace, with a live Q&amp;A every week to bring your questions to:', items: TWELVE_MODULES },
+    { h: `And in the nine months ${em('after')}`, intro: 'The certification path adds the training in holding space for someone else. There you learn:', items: CERT_LEARN },
+  ],
+  'b-workshop3': [
+    {
+      h: `What no course page ${em('usually admits')}`,
+      paras: [
+        'Sometimes you&rsquo;ll feel lighter. Sometimes you&rsquo;ll meet something tender first. If all you want is a pleasant hour, there are gentler tools, and they can be good ones.',
+        'But if you&rsquo;re willing to meet the parts that have been waiting, the old fear, the grief, the anger, what&rsquo;s on the other side isn&rsquo;t a quick boost. It&rsquo;s a steadier kind of peace.',
+      ],
+    },
+  ],
+  'c-12w-ended1': [{ h: `What the certification course ${em('holds')}`, items: CERT_INCLUDES }],
+  'c-12w-ended2': [
+    { h: `What the live sessions ${em('are')}`, items: LIVE_WHAT },
+    { h: `What you learn in the ${em('certification course')}`, intro: 'Your 12 weeks were for your own practice. These nine months are about sitting with someone else while they sound:', items: CERT_LEARN, paras: [CERT_NOT] },
+  ],
+  'c-12w-ended3': [
+    {
+      h: `If you are ${em('wondering')}`,
+      paras: [
+        'Maybe you don&rsquo;t want to stop, and you don&rsquo;t know yet what going on would look like. A month of live sessions is a small way to find out. Nine months of training is a larger one.',
+        'And if you have no professional ambition at all and simply want this for yourself: that is enough.',
+      ],
+    },
+  ],
+  'd-12w-late1': [{ h: `What the certification course ${em('holds')}`, items: CERT_INCLUDES }],
+  'd-12w-late2': [
+    { h: `What you learn in ${em('those nine months')}`, items: CERT_LEARN, paras: [CERT_NOT] },
+    { h: `And what the pass ${em('keeps open')}`, items: LIVE_WHAT },
+  ],
+  'd-12w-late3': [
+    {
+      h: `A small way, ${em('and a larger one')}`,
+      paras: [
+        'A month of live sessions is a small way to keep going after week twelve. Nine months of training is a larger one. Neither changes anything in the weeks you still have.',
+      ],
+    },
+  ],
+  'e-12w-early1': [
+    {
+      h: `Who goes on ${em('to certification')}`,
+      paras: [
+        'People who felt in a single workshop, or in their first weeks, that something old had shifted, and who want to learn the work from the inside out. Maybe for one person at a time, maybe for a group, maybe only for themselves.',
+        'Therapists, coaches, sound healers, breathworkers, bodyworkers and teachers who want a tool that reaches deeper than words can go. And people with no professional ambition at all. That is enough.',
+      ],
+    },
+    { h: `What the course ${em('holds')}`, items: CERT_INCLUDES },
+  ],
+  'e-12w-early2': [{ h: `What you learn ${em('there')}`, items: CERT_LEARN, paras: [CERT_NOT] }],
+  'e-12w-early3': [],
+};
+
 // ---- plain text ----
 const plain = (html) =>
   html
@@ -441,6 +613,7 @@ for (const [ai, A] of AUDIENCES.entries()) {
       strip(STRIP[i]),
       hero(A.hero[0], A.hero[1], url(first.page, `${c}_hero`)),
       row(eyebrow(A.eyebrow) + h1(e.h1) + p(HELLO) + e.body.map((t, j) => p(t, j === e.body.length - 1)).join(''), '44px 44px 6px'),
+      ...(MORE[c] ?? []).map(section),
       ...offers.map(offer),
       signoff(e.ps, e.close),
     ];
@@ -448,6 +621,7 @@ for (const [ai, A] of AUDIENCES.entries()) {
     const text = `${HELLO}
 
 ${e.body.map(plain).join('\n\n')}
+${(MORE[c] ?? []).map((m) => `\n\n${sectionText(m)}`).join('')}
 
 
 ${A.offers(`${c}_text`)
@@ -467,41 +641,30 @@ ${TEXT_FOOT}`;
     writeFileSync(join(here, `${file}.txt`), text);
     const name = `BFCM ${String.fromCharCode(65 + ai)}${n} · ${WHEN[i]} · ${A.name}`;
     seeds.push(`-- ${file}
-INSERT INTO broadcasts (name, subject, preheader, heading, body, body_text, format, status, audience_include_tags, audience_exclude_tags)
-SELECT ${sqlQuote(name)},
-       ${sqlQuote(plain(e.subject))},
-       ${sqlQuote(plain(e.preheader))},
-       ${sqlQuote(plain(e.h1))},
-       ${sqlQuote(html)},
-       ${sqlQuote(text)},
-       'html', 'draft', ${A.include ? sqlQuote(A.include) : 'NULL'}, ${sqlQuote(A.exclude)}
-WHERE NOT EXISTS (SELECT 1 FROM broadcasts WHERE name = ${sqlQuote(name)});
+UPDATE broadcasts
+   SET subject = ${sqlQuote(plain(e.subject))},
+       preheader = ${sqlQuote(plain(e.preheader))},
+       heading = ${sqlQuote(plain(e.h1))},
+       body = ${sqlQuote(html)},
+       body_text = ${sqlQuote(text)}
+ WHERE name = ${sqlQuote(name)} AND status = 'draft';
 `);
     console.log(name, '·', plain(e.subject));
   }
 }
 
 writeFileSync(
-  join(here, '../../../migrations/0102_bfcm_broadcasts.sql'),
-  `-- Black Friday to Cyber Monday 2026: the sale's fifteen broadcasts, seeded as
--- DRAFTS (five audiences, three emails each: first notice Fri 27 Nov, reminder
--- Sat 28 Nov, last chance Mon 30 Nov). They appear in /admin/broadcasts ready
--- to review, test-send and launch; nothing sends until you launch one.
+  join(here, '../../../migrations/0103_bfcm_broadcasts_more_content.sql'),
+  `-- Black Friday 2026: the fifteen broadcast drafts of migration 0102, with more
+-- to read in each (sections taken from the pages they lead to, the reminders
+-- most of all), the 12-month live pass and the monthly's sale months (Jacob,
+-- 25 Nov 2026). Only a broadcast that is still a DRAFT is touched: one already
+-- launched, scheduled or edited into another name keeps what it has.
 --
--- GENERATED by docs/emails/bfcm-2026/build.mjs from the words in that file
--- (each body is docs/emails/bfcm-2026/<file>.html, each body_text its .txt).
--- Do not edit here: change the script and save the draft again.
---
--- Audiences (src/lib/broadcasts/bfcm-tags.ts computes the bfcm: tags hourly
--- and again at each launch; every email excludes bfcm:bought, so whoever bought
--- or registered since the sale opened gets no further email):
---   A  the whole list, minus bfcm:known (anyone who ever registered for a
---      workshop or masterclass, holds a course, or recently bought)
---   B  bfcm:workshop      C  bfcm:12w-ended
---   D  bfcm:12w-late      E  bfcm:12w-early
--- The product tags in each exclude list are a second lock, for the minutes
--- between a purchase and the next tag sync. Sent from here only, not from
--- Drip, so there is no in-drip exclusion.
+-- GENERATED by docs/emails/bfcm-2026/build.mjs (each body is
+-- docs/emails/bfcm-2026/<file>.html, each body_text its .txt). Do not edit
+-- here. A later change to the words: edit the script, run it, and save the
+-- draft again (broadcast_save), or add a migration like this one.
 
 ${seeds.join('\n')}`,
 );

@@ -9,6 +9,24 @@ Hello {{ subscriber.first_name | default: "there" }},
 Nothing here needs you to be ready. The workshop and the masterclass are half price through Monday 30 November.
 
 
+THE QUESTIONS, ANSWERED PLAINLY
+
+- "Do I need to be able to sing?": No. You don't need a good voice, you need your honest one. You cannot do it wrong; it will always express something.
+- "Will I have to scream?": No. We don't go to screaming. One tone, the tone of what's there. That's the whole instruction.
+- "What about the neighbours?": The most common question in this work. Soft counts, and soft often counts double. A hum is a complete practice. Some people start in their car or their bathroom. Your microphone stays off unless you want it on.
+- "Is this a sound bath?": No. In a sound bath someone makes sound for you. Here you are the one sounding. Nobody does it to you, because nobody can.
+- "Is it safe if I'm holding a lot of pain?": The voice will never force you. In our experience it seldom brings up more than you can be with. Seldom is not never, which is why volume is yours to set and stopping is always allowed. And this doesn't replace therapy. It was never intended to.
+
+AND THE MASTERCLASS: A HUNDRED MINUTES
+
+If you work with people, this is the longer session. First you feel it. Then we look at how it works.
+
+- The practice, in your own body: A guided sounding practice, and the question under the whole method: what is below that? Your own body is the only place this work can be understood from.
+- Why the sound has to be theirs: Most sound work makes sound for you. This is the reverse: the person makes the sound of what's actually there.
+- Your role while they sound: Keep the room steady, ask the next honest question, and get out of the way. Present without fixing, steering, or taking it on.
+- Where it fits in your work, and where it doesn't: It layers onto what you already do; it doesn't replace it. This is not therapy, and it doesn't replace yours.
+
+
 THE WORKSHOP, 50% OFF: EUR 11 instead of EUR 22
 Seventy minutes, live on Zoom: an introduction to Somatic Vocal Healing, a somatic warm-up with live piano, guided sounding, and a first tool for everyday life. Your microphone stays off unless you want it on. Replay included.
 https://songdance.co/workshop?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=a-new2_text&{{prefill}}#register
