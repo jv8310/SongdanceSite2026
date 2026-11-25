@@ -32,6 +32,7 @@ import {
   livePassContents,
   livePassMonthlyFirstCents,
   livePassMonthlyRenewalCents,
+  livePassMonthlyPromo,
   livePassOffer,
   livePassSessions,
   parseLivePassMonths,
@@ -182,12 +183,21 @@ const prices = Object.fromEntries(
 const offers = LIVE_PASS_MONTHS.map((m) => livePassOffer(m, currency));
 // The monthly: the first month at the full price, every month after it less.
 const monthlyPrices = Object.fromEntries(
-  SUPPORTED_CURRENCIES.map((cur) => [cur, { first: livePassMonthlyFirstCents(cur), then: livePassMonthlyRenewalCents(cur) }]),
+  SUPPORTED_CURRENCIES.map((cur) => {
+    const sale = livePassMonthlyPromo(cur);
+    // During the site sale: what the first two months come to (20% off each).
+    return [cur, { first: sale ? sale.first_cents : livePassMonthlyFirstCents(cur), second: sale ? sale.second_cents : null, then: livePassMonthlyRenewalCents(cur) }];
+  }),
 );
-const monthlyFirstCents = livePassMonthlyFirstCents(currency);
+const monthlySale = livePassMonthlyPromo(currency);
+const monthlyFirstCents = monthlySale ? monthlySale.first_cents : livePassMonthlyFirstCents(currency);
+const monthlySecondCents = monthlySale ? monthlySale.second_cents : null;
 const monthlyCents = livePassMonthlyRenewalCents(currency);
-const monthlyTotal = (first: string, then: string, startsOn: string | null) =>
-  startsOn ? `${first} on ${fmtDay(startsOn)}, then ${then} a month` : `${first}, then ${then} a month`;
+const monthlyTotal = (first: string, then: string, startsOn: string | null) => {
+  // Same words as the browser's repaint().
+  const second = monthlySecondCents != null ? `, then ${money(monthlySecondCents)}` : '';
+  return startsOn ? `${first} on ${fmtDay(startsOn)}${second}, then ${then} a month` : `${first}${second}, then ${then} a month`;
+};
 // Under the pay buttons with the monthly chosen. Same words as the browser's monthlyNoteFor().
 const monthlyNoteText = (startsOn: string | null) =>
   startsOn
@@ -436,7 +446,7 @@ const faq: { q: string; a: string }[] = [
         >
           <p class="lp-status" data-lp-status role="status" hidden={!startNotice}>{startNotice}</p>
 
-          <LaunchOfferCallout scope="the live passes of 1, 3 and 6 months" percent={LIVE_PASS_PROMO_PERCENT} note="Already in the prices below." />
+          <LaunchOfferCallout scope="the live passes of 1, 3 and 6 months" percent={LIVE_PASS_PROMO_PERCENT} note="Already in the prices below. The monthly: its first two months." />
 
           <fieldset class="lp-options">
             <legend class="lp-sr">Choose your pass</legend>
@@ -494,7 +504,8 @@ const faq: { q: string; a: string }[] = [
               {/* Leads with what it costs a month; the first month's higher price sits under it. */}
               <span class="lp-monthly-price">
                 <span class="lp-monthly-rate"><strong data-lp-monthly-price>{money(monthlyCents)}</strong> <span class="lp-per">a month</span></span>
-                <span class="lp-monthly-first">First month <span data-lp-monthly-first>{money(monthlyFirstCents)}</span></span>
+                <span class="lp-monthly-first">First month <span data-lp-monthly-first>{money(monthlyFirstCents)}</span><span data-lp-monthly-second-wrap hidden={monthlySecondCents == null}>, second <span data-lp-monthly-second>{monthlySecondCents != null ? money(monthlySecondCents) : ''}</span></span></span>
+                {monthlySale && <span class="lp-save">Black Friday · first {monthlySale.months} months {monthlySale.percent}% off</span>}
               </span>
             </label>
           </fieldset>
@@ -668,7 +679,8 @@ const faq: { q: string; a: string }[] = [
   const form = document.querySelector<HTMLFormElement>('[data-lp-form]');
   if (form) {
     const prices = JSON.parse(form.dataset.prices || '{}') as Record<string, Record<string, Offer>>;
-    const monthlyPrices = JSON.parse(form.dataset.monthlyPrices || '{}') as Record<string, { first: number; then: number }>;
+    const monthlyPrices = JSON.parse(form.dataset.monthlyPrices || '{}') as Record<string, { first: number; second: number | null; then: number }>;
+    const monthlySecondEl = form.querySelector<HTMLElement>('[data-lp-monthly-second]');
     const monthlyInput = form.querySelector<HTMLInputElement>('[name="months"][value="monthly"]')!;
     const monthlyFirstEl = form.querySelector<HTMLElement>('[data-lp-monthly-first]')!;
     const monthlyPriceEl = form.querySelector<HTMLElement>('[data-lp-monthly-price]')!;
@@ -727,6 +739,8 @@ const faq: { q: string; a: string }[] = [
       const monthlyCents = monthlyPrices[cur] ?? monthlyPrices.EUR;
       monthlyFirstEl.textContent = formatMoney(monthlyCents.first, cur);
       monthlyPriceEl.textContent = formatMoney(monthlyCents.then, cur);
+      if (monthlySecondEl && monthlyCents.second != null) monthlySecondEl.textContent = formatMoney(monthlyCents.second, cur);
+      const second = monthlyCents.second != null ? `, then ${formatMoney(monthlyCents.second, cur)}` : '';
       const m = months();
       const o = table[m];
       extEl.textContent = formatMoney(o.extension_cents, cur);
@@ -740,8 +754,8 @@ const faq: { q: string; a: string }[] = [
       noteMonthlyText.textContent = monthlyNoteFor(startsOn);
       if (monthly) {
         totalEl.textContent = startsOn
-          ? `${formatMoney(monthlyCents.first, cur)} on ${fmtDay(startsOn)}, then ${formatMoney(monthlyCents.then, cur)} a month`
-          : `${formatMoney(monthlyCents.first, cur)}, then ${formatMoney(monthlyCents.then, cur)} a month`;
+          ? `${formatMoney(monthlyCents.first, cur)} on ${fmtDay(startsOn)}${second}, then ${formatMoney(monthlyCents.then, cur)} a month`
+          : `${formatMoney(monthlyCents.first, cur)}${second}, then ${formatMoney(monthlyCents.then, cur)} a month`;
         summaryLabel.textContent = 'Live pass · monthly';
       } else {
         totalEl.textContent = formatMoney(o.price_cents + ext, cur);

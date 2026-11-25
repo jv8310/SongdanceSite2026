@@ -1242,6 +1242,8 @@ export type LivePassMonthlyConfirmedCtx = {
   // "€52" — what the first month cost, when it cost more than the rest
   // (live-pass.ts, "The monthly's price"); null for a monthly at one price.
   firstMonthLabel?: string | null;
+  // "€35.20" — the second month, when a sale made it cheaper than the rest.
+  secondMonthLabel?: string | null;
   renewsLabel: string | null; // "18 November 2026" — the next charge
   manageUrl: string | null;
   eventsUrl: string;
@@ -1249,7 +1251,9 @@ export type LivePassMonthlyConfirmedCtx = {
 
 export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx): EmailContent {
   const stepsDown = !!ctx.firstMonthLabel && ctx.firstMonthLabel !== ctx.priceLabel;
-  const renews = stepsDown
+  const renews = ctx.secondMonthLabel
+    ? `Your first month (${ctx.firstMonthLabel}) is paid. The second month is ${ctx.secondMonthLabel}, and from the third it is ${ctx.priceLabel} a month, renewing by itself on the same day each month${ctx.renewsLabel ? ` — the next payment is on ${ctx.renewsLabel}` : ''}.`
+    : stepsDown
     ? ctx.renewsLabel
       ? `Your first month (${ctx.firstMonthLabel}) is paid. From the second month it is ${ctx.priceLabel} a month, renewing by itself on the same day each month — the next payment is on ${ctx.renewsLabel}.`
       : `Your first month (${ctx.firstMonthLabel}) is paid. From the second month it is ${ctx.priceLabel} a month, renewing by itself on the same day each month.`
@@ -1291,6 +1295,7 @@ export type LivePassMonthlyScheduledCtx = {
   loginEmail: string;
   startsLabel: string; // "1 January 2027" — the day of the first charge
   firstMonthLabel: string; // "€52"
+  secondMonthLabel?: string | null; // a sale's second month, when it differs
   priceLabel: string; // "€44" — each month after the first
   coveredUntilLabel: string | null; // "31 December 2026" — the live sessions they already have
   manageUrl: string | null;
@@ -1301,7 +1306,9 @@ export function livePassMonthlyScheduledEmail(ctx: LivePassMonthlyScheduledCtx):
   const opens = ctx.coveredUntilLabel
     ? `You already have the live sessions until ${ctx.coveredUntilLabel}, so your monthly picks up from there: from ${ctx.startsLabel} it opens every weekly Q&A and every monthly deepening session.`
     : `From ${ctx.startsLabel} it opens every weekly Q&A and every monthly deepening session.`;
-  const charges = `The first month, ${ctx.firstMonthLabel}, is charged on ${ctx.startsLabel}. From then on it is ${ctx.priceLabel} a month, on the same day each month, until you cancel.`;
+  const charges = ctx.secondMonthLabel
+    ? `The first month, ${ctx.firstMonthLabel}, is charged on ${ctx.startsLabel}. The second month is ${ctx.secondMonthLabel}, and from the third it is ${ctx.priceLabel} a month, on the same day each month, until you cancel.`
+    : `The first month, ${ctx.firstMonthLabel}, is charged on ${ctx.startsLabel}. From then on it is ${ctx.priceLabel} a month, on the same day each month, until you cancel.`;
   const where = "You'll find the sessions under Events in the CiRCLE — sign in with";
   const stop = ctx.manageUrl
     ? `Changed your mind? Cancel before ${ctx.startsLabel} from the link below and nothing is ever charged — or any time after, and nothing more is charged.`

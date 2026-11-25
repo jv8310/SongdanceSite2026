@@ -665,7 +665,15 @@ November"). Jacob, 25 Nov 2026.
   `certPromoPriceCents`: EUR €797 → **€395**, path €1,347 → **€670**, 12-week **€275**,
   seats **€11 / €22**); **20%** off the live passes of 1, 3 and 6 months
   (`livePassPromoPercent`, in `livePassPriceCents` / `livePassOffer`: €41 / €105 / €187; the
-  add-on follows the pass, the monthly keeps its price). **Not** the Grief Course, the
+  add-on follows the pass). **The monthly: 20% off its first two months** (`livePassMonthlyPromo`:
+  €41.60, then €35.20, then €44), for a monthly agreed during the sale, also one that starts later.
+  Stripe takes it as a coupon on the subscription (`ensureRepeatingCoupon`, id
+  `sale-monthly-20pct-<N>m`; a coupon's months count from the day it is applied, so a later start
+  gets the whole months until its first charge plus two), PayPal as two TRIAL cycles before the
+  regular one (`secondCycleMinor`). The order row is written like any monthly's (€44 a month + the
+  €8 first-month row), so **the money reports read such a monthly about €19 too high over its first
+  two months**; the sale is on the checkout event (`promo_percent`), which `monthlySaleForOrder`
+  reads for the confirmation emails and the manage page. **Not** the Grief Course, the
   Forgiveness Course, the journeys, albums, sessions or retreats
   (`PROMO_INCLUDES_SIDE_COURSES = false`, `sideCoursePromoPercent`, which their checkouts,
   forms, the `/courses` chips and the Meta feed all read). A `?discount` / `?adiscount` link

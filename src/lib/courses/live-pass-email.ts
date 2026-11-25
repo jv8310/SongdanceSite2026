@@ -31,7 +31,7 @@ import {
   livePassContents,
   livePassMonthsOf,
   monthlyFirstMonthExtraCents,
-} from './live-pass';
+ monthlySaleForOrder } from './live-pass';
 import { planLivePass, settleLivePassPeriod } from './live-pass-plan';
 
 // Where the sessions are: the member app's Events tab (circle.songdance.co
@@ -152,11 +152,13 @@ async function sendMonthlyConfirmation(env: MailEnv, passed: CourseRegistration)
     const renewsOn = monthlyPaidThroughDay(reg);
     const currency = (reg.currency || 'EUR').toUpperCase() as SupportedCurrency;
     const firstExtra = monthlyFirstMonthExtraCents(reg.bumps);
+    const sale = await monthlySaleForOrder(env.DB, reg);
     const content = livePassMonthlyConfirmedEmail({
       name: reg.first_name,
       loginEmail: reg.email,
       priceLabel: formatMoney(reg.amount_cents, currency),
-      firstMonthLabel: firstExtra > 0 ? formatMoney(reg.amount_cents + firstExtra, currency) : null,
+      firstMonthLabel: sale ? formatMoney(sale.first_cents, currency) : firstExtra > 0 ? formatMoney(reg.amount_cents + firstExtra, currency) : null,
+      secondMonthLabel: sale ? formatMoney(sale.second_cents, currency) : null,
       renewsLabel: renewsOn ? fmtDay(renewsOn) : null,
       manageUrl: await livePassManageUrlFor(env, reg.id),
       eventsUrl: LIVE_PASS_EVENTS_URL,

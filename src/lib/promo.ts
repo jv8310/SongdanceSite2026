@@ -57,6 +57,11 @@ export const LAUNCH_PROMO_SALE_NAME = 'Black Friday sale';
 // What the live passes (1, 3 and 6 months) come down by while the sale runs.
 export const LIVE_PASS_PROMO_PERCENT = 20;
 
+// The monthly live pass during the sale: this percent off its first months
+// (Jacob, 25 Nov 2026: "first two months 20% off"), for a monthly agreed while
+// the sale runs, also one whose first charge falls later.
+export const LIVE_PASS_MONTHLY_PROMO_MONTHS = 2;
+
 // Whether the sale also covers the Grief Course, the Forgiveness Course and the
 // journeys (the launch sale did; Black Friday does not).
 export const PROMO_INCLUDES_SIDE_COURSES = false;

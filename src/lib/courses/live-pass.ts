@@ -88,7 +88,7 @@
 // site tells a monthly payment from a setup fee by its amount, and a €52 first
 // cycle on a €44 plan would never be counted.
 
-import { livePassPromoPercent } from '../promo';
+import { LIVE_PASS_MONTHLY_PROMO_MONTHS, livePassPromoPercent } from '../promo';
 import { formatMoney, type SupportedCurrency } from '../workshops/currency';
 import { businessDayOf, businessWindowUtc } from '../workshops/periods';
 import { albumPriceCents } from '../music/product';
@@ -221,6 +221,56 @@ export function livePassMonthlyRenewalCents(currency: SupportedCurrency): number
     (livePassMonthlyCents(currency) * (100 - LIVE_PASS_MONTHLY_RENEWAL_DISCOUNT_PERCENT)) / 100,
     stepCents(currency),
   );
+}
+
+// The monthly during the site sale (Black Friday 2026): the sale's percent off
+// its first two months — the first month's own price, then the renewal price —
+// and the usual price from the third. Null outside a sale. Exact to the minor
+// unit, not floored: Stripe takes the percent itself (a coupon), PayPal bills
+// these two figures as cycles of their own, and the page prints them.
+export type LivePassMonthlyPromo = {
+  percent: number;
+  months: number;
+  first_cents: number;
+  second_cents: number;
+};
+
+export function livePassMonthlyPromo(currency: SupportedCurrency, nowMs: number = Date.now()): LivePassMonthlyPromo | null {
+  const percent = livePassPromoPercent(nowMs);
+  if (!percent) return null;
+  const off = (cents: number) => Math.round((cents * (100 - percent)) / 100);
+  return {
+    percent,
+    months: LIVE_PASS_MONTHLY_PROMO_MONTHS,
+    first_cents: off(livePassMonthlyFirstCents(currency)),
+    second_cents: off(livePassMonthlyRenewalCents(currency)),
+  };
+}
+
+// What a monthly agreed during a sale really charges for its first two months:
+// the order row is written like any monthly's (the reports read it so), and the
+// sale is on the checkout's own event, by the order's id. Null for a monthly
+// outside a sale. For the emails and the manage page, which name the prices.
+export async function monthlySaleForOrder(
+  db: D1Database,
+  reg: { id: number; amount_cents: number; bumps: string | null },
+): Promise<{ percent: number; first_cents: number; second_cents: number } | null> {
+  try {
+    const row = await db
+      .prepare(`SELECT payload FROM events WHERE external_id IN (?1, ?2) LIMIT 1`)
+      .bind(`local-course-${reg.id}-monthly`, `local-course-pp-${reg.id}-monthly`)
+      .first<{ payload: string | null }>();
+    const percent = Number((row?.payload ? JSON.parse(row.payload) : null)?.promo_percent ?? 0);
+    if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return null;
+    const off = (cents: number) => Math.round((cents * (100 - percent)) / 100);
+    return {
+      percent,
+      first_cents: off(reg.amount_cents + monthlyFirstMonthExtraCents(reg.bumps)),
+      second_cents: off(reg.amount_cents),
+    };
+  } catch {
+    return null;
+  }
 }
 
 // The pass at its usual price: discounted for its length and floored to a whole
