@@ -146,7 +146,7 @@ function startNoticeText(
         : `Your course gives you the live sessions until ${fmtDay(liveUntil)}, so a pass only starts when they end${startsOn ? `, on ${fmtDay(startsOn)}` : ''}. You never pay for a session you already have.`,
     );
   }
-  if (passRunning) {
+  if (passRunning && !monthlyLater) {
     lines.push(
       monthly
         ? 'You have a pass running. A monthly starts the day you take it, alongside it — a new pass would wait for the one you have.'
@@ -938,7 +938,7 @@ const faq: { q: string; a: string }[] = [
             : `Your course gives you the live sessions until ${fmtDay(status.live_until)}, so a pass only starts when they end${startsOn ? `, on ${fmtDay(startsOn)}` : ''}. You never pay for a session you already have.`,
         );
       }
-      if (status?.pass_running) {
+      if (status?.pass_running && !monthlyLater) {
         lines.push(
           monthly
             ? 'You have a pass running. A monthly starts the day you take it, alongside it — a new pass would wait for the one you have.'
@@ -1199,7 +1199,7 @@ const faq: { q: string; a: string }[] = [
     margin: 0 0 20px; padding: 12px 14px; border-radius: 10px; font-size: 15px; line-height: 1.5;
     color: var(--ink); background: rgba(92, 106, 74, 0.1); border-left: 3px solid var(--moss);
   }
-  .lp-step--first { padding-top: 0; border-top: 0; margin-bottom: 6px; }
+  .lp-step.lp-step--first { padding-top: 0; border-top: 0; margin-bottom: 6px; }
   .lp-who { margin-bottom: 4px; }
   .lp-who-hint { font-size: 15px; line-height: 1.55; color: var(--ink-soft); margin: 0 0 14px; max-width: 46em; }
   .lp-who-row { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -1218,10 +1218,11 @@ const faq: { q: string; a: string }[] = [
   .lp-access-head { font-family: var(--font-display); font-size: 22px; line-height: 1.3; margin: 0; }
   .lp-access-note { font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); margin: 6px 0 0; }
   .lp-access-list { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid rgba(92, 106, 74, 0.25); display: grid; gap: 8px; }
-  .lp-access-list li { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.5; }
-  .lp-access-list i { flex: none; font-size: 19px; color: var(--moss-deep); margin-top: 1px; }
-  .lp-access-detail { color: var(--ink-soft); }
-  .lp-access-detail::before { content: '· '; }
+  /* The browser rebuilds these rows, so they carry no scope attribute. */
+  .lp-access-list :global(li) { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.5; }
+  .lp-access-list :global(i) { flex: none; font-size: 19px; color: var(--moss-deep); margin-top: 1px; }
+  .lp-access-list :global(.lp-access-detail) { color: var(--ink-soft); }
+  .lp-access-list :global(.lp-access-detail)::before { content: '· '; }
 
   .lp-toggle {
     display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 0 auto 20px; max-width: 520px;

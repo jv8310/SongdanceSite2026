@@ -299,8 +299,11 @@ export async function loadLiveAccess(
     for (const c of app.data.courses) {
       if (c.product === 'live-pass' || c.state === 'ended' || c.state === 'revoked' || !c.liveUntil) continue;
       const v = c.liveUntil.trim();
-      // A plain date is the last day covered; an instant is the moment it ends.
-      const until = PLAIN_DAY.test(v) ? v : addDays(businessDayOf(v), -1);
+      // A plain date is the last day covered; an instant is the moment it ends
+      // (the end of a day on the member's own clock, so the day an admin set
+      // is read from where it is written as a day).
+      const set = (c.liveSetByAdmin ?? '').trim();
+      const until = PLAIN_DAY.test(set) ? set : PLAIN_DAY.test(v) ? v : addDays(businessDayOf(v), -1);
       covers.push({ until, by: c.label, kind: 'course', approx: false });
     }
     const open = app.data.courses.filter((c) => c.product === 'live-pass' && (c.state === 'active' || c.state === 'starts-later'));
@@ -434,12 +437,18 @@ export function describeLiveAccess(
   access: LiveAccess,
   plan: Pick<LivePassPlan, 'liveUntil' | 'monthlyUntil'>,
   monthlyRunning: boolean,
+  today = brusselsToday(),
 ): LivePassStatus['access'] {
   const items: LivePassStatus['access']['items'] = [];
-  for (const c of access.covers) {
-    if (c.kind !== 'course') continue;
-    const by = c.by.startsWith('your ') ? `Y${c.by.slice(1)}` : c.by;
-    items.push({ icon: 'ph-graduation-cap', title: by, detail: `Live sessions until ${sayDay(c.until)}` });
+  // Their course, while it still gives them live sessions: one line, the one
+  // that runs longest (the app's name for it when it answered).
+  const course = access.covers
+    .filter((c) => c.kind === 'course' && c.until >= today)
+    .sort((x, y) => x.until.localeCompare(y.until) || (x.by === 'your course' ? -1 : 1))
+    .pop();
+  if (course) {
+    const by = course.by.startsWith('your ') ? `Y${course.by.slice(1)}` : course.by;
+    items.push({ icon: 'ph-graduation-cap', title: by, detail: `Live sessions until ${sayDay(course.until)}` });
   }
   for (const p of access.passes) {
     items.push({
@@ -517,7 +526,7 @@ export async function loadLivePassStatus(
       monthly_covered_until: start.coveredUntil,
       monthly_covered_by: start.coveredBy,
       periods: plan.periods,
-      access: describeLiveAccess(access, plan, !!monthly),
+      access: describeLiveAccess(access, plan, !!monthly, today),
       access_after: accessAfter,
       certification: {
         holds_course: plan.window.holdsCourse,
