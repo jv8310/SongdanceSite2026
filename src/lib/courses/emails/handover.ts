@@ -193,7 +193,7 @@ export const DRIP_ELSEWHERE: Array<{ name: string; does: string; when: string }>
   },
   {
     name: 'Email series “Join CEEE Monthly” (“Continue your journey”)',
-    does: 'Tells a 12-week finisher their course has ended and offers the CEEE monthly membership — which the live pass (1, 3 or 6 months) has replaced. 96 people are in it; no workflow subscribes anyone, so it is fed from outside the workflows (most likely the HTTP post at the end of “prod_SVH_12w”, or a Rule). Its button, songdance.co/ceee-2026, now redirects to the live pass page.',
+    does: 'Tells a 12-week finisher their course has ended and offers the CEEE monthly membership — which the live pass (1, 3, 6 or 12 months) has replaced. 96 people are in it; no workflow subscribes anyone, so it is fed from outside the workflows (most likely the HTTP post at the end of “prod_SVH_12w”, or a Rule). Its button, songdance.co/ceee-2026, now redirects to the live pass page.',
     when: 'Switch it off the day the 12-Week switch goes on: from then the site’s week-12 note offers the live pass.',
   },
   {

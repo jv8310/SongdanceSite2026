@@ -714,20 +714,42 @@ anyone whose course no longer includes them (or never did). Logic in
 [`src/lib/courses/live-pass.ts`](src/lib/courses/live-pass.ts) (October 2026).
 
 - **Prices**: 1 month €52; 3 months = 3 × €52 − 15% → **€132**; 6 months =
-  6 × €52 − 25% → **€234**, floored to whole units (5 for the krona family) so
+  6 × €52 − 25% → **€234**; 12 months (the yearly pass, November 2026) =
+  12 × €52 − 30% → **€436**, floored to whole units (5 for the krona family) so
   the advertised percent is never under-delivered. Other currencies scale the
   €52 month with the albums' ratios (`albumPriceCents`). The add-on **Extend my
-  certification window** is +20% of the pass, floored: €10 / €26 / €46 — shown
+  certification window** is +20% of the pass, floored: €10 / €26 / €46 / €87 — shown
   only to a 9-month (certification) student, CEEE cohort included.
 - **Sold by the month, counted by the session** (Jacob, October 2026): a pass
-  holds exactly **4 / 12 / 24 Q&As and 1 / 3 / 6 deepening sessions**
+  holds exactly **4 / 12 / 24 / 48 Q&As and 1 / 3 / 6 / 12 deepening sessions**
   (`livePassSessions`, `livePassContents` — always in numerals) — the next ones
   on the member app's calendar from the day it starts — and access ends after
   the last of them. A week without a Q&A costs nobody a session, and passes
   queue. **The member app counts the sessions** (it holds the calendar); the
-  site never knows which session a pass ends on, so no page, email or Drip
-  field gives a pass an end date.
-- **Rides the course machinery** as `live-pass-1m` / `-3m` / `-6m` on
+  site never knows which session a pass ends on, so no email or Drip field
+  gives a pass an end date; the pass page says "until around" (below).
+- **The registration card starts with the email address** (November 2026):
+  nothing else of the form shows until the address is known (typed, or from the
+  link). Then: **"Your live access is until DATE"** with what gives it — their
+  course, their passes (each with the sessions still to come), a monthly — then a
+  toggle **One-time pass / Monthly subscription**, the four passes or the monthly,
+  and the rest of the form. One answer for the page and
+  `/api/courses/live-pass-status`: `loadLivePassStatus` in `live-pass-plan.ts`
+  (the words too: `describeLiveAccess`).
+- **Passes are cumulated** (`loadLiveAccess`): two passes are the sessions of
+  both, one after the other, so the access runs to the end of the last. The day
+  is the member app's when it has every session of every open pass on its
+  calendar (the day of the last one); while a pass still waits for sessions to be
+  scheduled (the calendar usually holds a few weeks) it is an estimate, "until
+  around": the end of the passes' months, stacked (`endsOn`). Each pass card then
+  says "Live access until around …", its months counted from the day after what
+  they have. The same answer holds a new **monthly** back (`planMonthlyStart`):
+  until November 2026 a pass whose sessions were not on the calendar yet was left
+  out, so a monthly taken behind two passes was charged after the first alone.
+  The app names each pass's order and what is still to come (`AppCourse.sourceRef`
+  / `.pass`); an app deployed before that still gives the date, without the
+  counts.
+- **Rides the course machinery** as `live-pass-1m` / `-3m` / `-6m` / `-12m` on
   `course_registrations` (full payment, Stripe + PayPal); the add-on is a
   `cert-extension` row in `bumps`, so every money report already counts it.
   Drip: `prod_LivePass` (+ `prod_CertExtension`), event `Completed live pass

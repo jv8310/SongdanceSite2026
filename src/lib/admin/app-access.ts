@@ -40,6 +40,11 @@ export type AppCourse = {
   note: string | null;
   by: string | null;
   isCertification: boolean;
+  // A live pass: the site order it came from ("course_registrations:685"), what
+  // it holds and how many of its sessions are still to come. Absent from an app
+  // deployed before them (November 2026).
+  sourceRef?: string | null;
+  pass?: { qa: number; deepening: number; qaToCome: number; deepeningToCome: number } | null;
 };
 
 export type AppCertCheck = 'classes' | 'practice' | 'qa' | 'quiz' | 'video' | 'applied';

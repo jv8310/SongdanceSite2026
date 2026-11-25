@@ -5,6 +5,8 @@
 //   1 month   €52                  4 Q&As and 1 deepening session
 //   3 months  3 × €52, 15% off     €132    12 Q&As and 3 deepening sessions
 //   6 months  6 × €52, 25% off     €234    24 Q&As and 6 deepening sessions
+//   12 months 12 × €52, 30% off    €436    48 Q&As and 12 deepening sessions
+//             (the yearly pass, November 2026)
 //
 // A pass holds exactly that many sessions — the next ones on the member app's
 // calendar from the day it starts — and access ends after the last of them
@@ -16,7 +18,7 @@
 //
 // Plus one add-on, sold only with a pass: **Extend my certification window**
 // (+20% of the pass). It keeps the window to apply for certification open for
-// the pass's months (1, 3 or 6, counted from the day its sessions start, behind
+// the pass's months (1, 3, 6 or 12, counted from the day its sessions start, behind
 // any earlier pass's months) — for a 9-month (certification) student whose
 // window has closed, and for the CEEE 2025 cohort, who hold the course without
 // the right to certify (`cert_no_certification`). Nobody else is shown it: the
@@ -47,7 +49,7 @@
 // pass: the pass ends with its last session).
 //
 // Rides the ordinary course machinery under product slugs `live-pass-1m` /
-// `-3m` / `-6m`; the add-on is a row in the `bumps` JSON (`cert-extension`), so
+// `-3m` / `-6m` / `-12m`; the add-on is a row in the `bumps` JSON (`cert-extension`), so
 // every money report already counts it.
 //
 // ── The monthly (October 2026) ──────────────────────────────────────────────
@@ -94,11 +96,11 @@ import { albumPriceCents } from '../music/product';
 import { addDays, addMonths } from './cert-access';
 import { parsePurchasedBumps } from './db';
 
-export const LIVE_PASS_MONTHS = [1, 3, 6] as const;
+export const LIVE_PASS_MONTHS = [1, 3, 6, 12] as const;
 export type LivePassMonths = (typeof LIVE_PASS_MONTHS)[number];
 
 export const LIVE_PASS_MONTHLY_EUR_CENTS = 5200;
-export const LIVE_PASS_DISCOUNT_PERCENT: Record<LivePassMonths, number> = { 1: 0, 3: 15, 6: 25 };
+export const LIVE_PASS_DISCOUNT_PERCENT: Record<LivePassMonths, number> = { 1: 0, 3: 15, 6: 25, 12: 30 };
 export const CERT_EXTENSION_PERCENT = 20;
 
 export const LIVE_PASS_SLUG_PREFIX = 'live-pass-';

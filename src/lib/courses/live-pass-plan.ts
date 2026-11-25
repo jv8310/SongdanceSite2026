@@ -10,19 +10,22 @@
 import { brusselsToday, businessDayOf } from '../workshops/periods';
 import { askApp } from '../admin/app-access';
 import { findCountry } from '../countries';
-import { addDays, FOUNDATION_WEEKS } from './cert-access';
+import { addDays, addMonths, FOUNDATION_WEEKS } from './cert-access';
 import { certWindowForEmail, extensionWouldHelp, type CertWindow } from './cert-window';
-import { monthlyPaidThroughDay } from './live-pass-monthly';
+import { findRunningMonthly, monthlyPaidThroughDay } from './live-pass-monthly';
 import type { CourseRegistration } from './db';
 import {
   LIVE_PASS_MONTHLY_SLUG,
   LIVE_PASS_MONTHS,
   listPaidLivePasses,
+  livePassContents,
+  livePassLabel,
   livePassMonthsOf,
   livePassPeriod,
   recordLivePassPeriod,
   type LivePassMonths,
   type LivePassPeriod,
+  type PaidLivePass,
 } from './live-pass';
 
 export type LivePassPlan = {
@@ -43,6 +46,9 @@ export type LivePassPlan = {
   monthlyUntil: string | null;
   // Whether that monthly still renews (not cancelled on our side).
   monthlyRenews: boolean;
+  // Every paid pass under this address, oldest first (the months of each
+  // already stacked behind the one before it: live-pass.ts, livePassPeriod).
+  passes: PaidLivePass[];
   periods: Record<LivePassMonths, LivePassPeriod & { extensionHelps: boolean }>;
 };
 
@@ -181,6 +187,7 @@ export async function planLivePass(
     passRunning: passesUntil.some((d) => d >= today),
     monthlyUntil: monthly.until,
     monthlyRenews: monthly.renews,
+    passes,
     periods,
   };
 }
@@ -205,24 +212,150 @@ export function extensionRefusal(plan: LivePassPlan, months: LivePassMonths): st
   return `Your certification window already runs until ${label}, past what the extension would add, so it would buy you nothing. Untick it to continue.`;
 }
 
+// ── The live sessions they already have ─────────────────────────────────────
+//
+// "Your live access is until DATE" (Jacob, November 2026): one answer for
+// everything that gives this person the Q&As and the deepening sessions, and
+// the passes they hold, cumulated — two passes are the sessions of both, one
+// after the other, so the access runs to the end of the last.
+//
+// Read from two places:
+//   • the site's own dates (planLivePass): the certification course or the
+//     12-week weeks bought here, a monthly's paid month, and every paid pass;
+//   • the member app, which holds every access rule and the calendar — asked
+//     through APP_ADMIN (`member`), the same answer the People page's App
+//     access section prints. A course's `liveUntil` is the end of its live
+//     sessions (a plain date is the last day it covers; an instant the moment
+//     it ends). A pass's `liveUntil` is the end of its LAST session, known only
+//     once every one of its sessions is on the calendar.
+//
+// A pass ends with its last session, and the calendar is usually scheduled a
+// few weeks ahead only. So while any pass of theirs still waits for sessions
+// to be scheduled, the day is an estimate (`approx`): the end of the passes'
+// months, stacked one behind the other (a pass is sold by the month: about 4
+// Q&As and 1 deepening session each). Once the app has all their sessions on
+// its calendar, the day is the day of the last one. When the app does not
+// answer, the site's own dates decide.
+export type HeldPass = {
+  id: number; // the order (C-<id>)
+  months: LivePassMonths;
+  label: string; // "Live pass · 3 months"
+  contents: string; // "12 Q&As and 3 deepening sessions"
+  paidOn: string;
+  // What is still to come, when the app says so (null: an app deployed before it, or silent).
+  toCome: { qa: number; deepening: number } | null;
+};
+
+export type LiveCover = { until: string; by: string; kind: 'course' | 'pass' | 'monthly'; approx: boolean };
+
+export type LiveAccess = {
+  // The last day of the live sessions they have (inclusive Brussels day),
+  // today or later; null when nothing gives them any.
+  until: string | null;
+  approx: boolean; // an estimate: a pass's last sessions are not on the calendar yet
+  by: string | null; // what gives them that day, for the page ("your course")
+  // A monthly that still renews: the sessions stay open past `until` by themselves.
+  monthlyRenews: boolean;
+  passes: HeldPass[]; // the passes still running or waiting their turn, oldest first
+  covers: LiveCover[]; // everything counted, for planMonthlyStart
+};
+
+const APP_ASK_MS = 4000;
+const PLAIN_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function passOrderId(ref: string | null | undefined): number | null {
+  const m = /^course_registrations:(\d+)$/.exec(ref ?? '');
+  return m ? Number(m[1]) : null;
+}
+
+export async function loadLiveAccess(
+  env: { APP_ADMIN?: unknown },
+  email: string,
+  plan: Pick<LivePassPlan, 'liveUntil' | 'monthlyUntil' | 'monthlyRenews' | 'passes'>,
+  today = brusselsToday(),
+): Promise<LiveAccess> {
+  const covers: LiveCover[] = [];
+  if (plan.liveUntil) covers.push({ until: plan.liveUntil, by: 'your course', kind: 'course', approx: false });
+  if (plan.monthlyUntil) covers.push({ until: plan.monthlyUntil, by: 'your monthly', kind: 'monthly', approx: false });
+
+  const app = await Promise.race([
+    askApp(env, (a) => a.member({ email: email.trim().toLowerCase() })),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), APP_ASK_MS)),
+  ]);
+
+  const describe = (p: PaidLivePass, toCome: HeldPass['toCome']): HeldPass => ({
+    id: p.id,
+    months: p.months,
+    label: livePassLabel(p.months),
+    contents: livePassContents(p.months),
+    paidOn: p.paidOn,
+    toCome,
+  });
+  // The end of the passes' months, stacked: what the site can say by itself.
+  const monthsEnd = plan.passes.map((p) => p.endsOn).sort().pop() ?? null;
+  let passes: HeldPass[];
+
+  if (app?.ok) {
+    for (const c of app.data.courses) {
+      if (c.product === 'live-pass' || c.state === 'ended' || c.state === 'revoked' || !c.liveUntil) continue;
+      const v = c.liveUntil.trim();
+      // A plain date is the last day covered; an instant is the moment it ends.
+      const until = PLAIN_DAY.test(v) ? v : addDays(businessDayOf(v), -1);
+      covers.push({ until, by: c.label, kind: 'course', approx: false });
+    }
+    const open = app.data.courses.filter((c) => c.product === 'live-pass' && (c.state === 'active' || c.state === 'starts-later'));
+    if (open.length) {
+      const exact = open.every((c) => !!c.liveUntil);
+      const lastSession = open
+        .map((c) => (c.liveUntil ? businessDayOf(c.liveUntil) : null))
+        .filter((d): d is string => !!d)
+        .sort()
+        .pop();
+      // Never earlier than a session the app already holds for them, nor than today.
+      const until = exact ? lastSession! : [monthsEnd, lastSession, today].filter((d): d is string => !!d).sort().pop()!;
+      covers.push({ until, by: open.length > 1 ? 'your live passes' : 'your live pass', kind: 'pass', approx: !exact });
+    }
+    // Which of the site's orders those are: by the order the app names, else
+    // (an app deployed before it did) the newest ones — passes queue oldest first.
+    const named = new Map<number, HeldPass['toCome']>();
+    for (const c of open) {
+      const id = passOrderId(c.sourceRef);
+      if (id != null) named.set(id, c.pass ? { qa: c.pass.qaToCome, deepening: c.pass.deepeningToCome } : null);
+    }
+    passes = named.size
+      ? plan.passes.filter((p) => named.has(p.id)).map((p) => describe(p, named.get(p.id) ?? null))
+      : plan.passes.slice(Math.max(0, plan.passes.length - open.length)).map((p) => describe(p, null));
+  } else {
+    const running = plan.passes.filter((p) => p.endsOn >= today);
+    if (running.length && monthsEnd) {
+      covers.push({ until: monthsEnd, by: running.length > 1 ? 'your live passes' : 'your live pass', kind: 'pass', approx: true });
+    }
+    passes = running.map((p) => describe(p, null));
+  }
+
+  const latest = covers.filter((c) => c.until >= today).sort((x, y) => x.until.localeCompare(y.until)).pop() ?? null;
+  return {
+    until: latest?.until ?? null,
+    approx: latest?.approx ?? false,
+    by: latest?.by ?? null,
+    monthlyRenews: !!plan.monthlyUntil && plan.monthlyRenews,
+    passes,
+    covers,
+  };
+}
+
 // ── When a monthly starts ───────────────────────────────────────────────────
 //
 // A monthly opens every session from its first charge, so it starts — and is
 // first charged — when the live sessions this person already has run out (Jacob,
 // October 2026: someone with Q&As until 31 December who takes a monthly in
 // October pays from 1 January, not twice for November and December). What they
-// already have is read from two places:
-//   • the site's own dates (planLivePass): the certification course or the
-//     12-week weeks bought here, and a cancelled monthly's paid month;
-//   • the member app, which holds every access rule — an admin grant such as a
-//     CEEE year of Q&As, extra time on a course, the Mighty imports — asked
-//     through APP_ADMIN for the address (`member`), the same answer the People
-//     page's App access section prints: each open course's `liveUntil` ("live
-//     sessions until …"). A plain date is the last day it covers; an instant is
-//     the moment it ends.
-// When the app does not answer, the site's own dates decide. A start less than
-// two days off is today: Stripe's trial needs 48 hours, and a day's overlap is
-// not worth a charge on another day.
+// already have is loadLiveAccess above: their course, an admin grant, a
+// cancelled monthly's paid month, and their passes, cumulated (two passes hold
+// it back to the end of the second — until November 2026 a pass whose sessions
+// were not on the calendar yet was left out, and the monthly started after the
+// first pass alone). A start less than two days off is today: Stripe's trial
+// needs 48 hours, and a day's overlap is not worth a charge on another day.
 export type MonthlyStart = {
   startsOn: string | null; // the Brussels day of the first charge; null = today
   coveredUntil: string | null; // the last day of the live sessions they already have
@@ -232,38 +365,169 @@ export type MonthlyStart = {
 export const MONTHLY_DEFER_MIN_DAYS = 2;
 export const MONTHLY_DEFER_MAX_DAYS = 700;
 
-const APP_ASK_MS = 4000;
-
 export async function planMonthlyStart(
   env: { APP_ADMIN?: unknown },
   email: string,
-  plan: Pick<LivePassPlan, 'liveUntil' | 'monthlyUntil' | 'monthlyRenews'>,
+  plan: Pick<LivePassPlan, 'liveUntil' | 'monthlyUntil' | 'monthlyRenews' | 'passes'>,
   today = brusselsToday(),
+  access?: LiveAccess,
 ): Promise<MonthlyStart> {
-  // Each candidate is the first day NOT covered, with what covers the days before it.
-  const free: Array<{ day: string; by: string }> = [];
-  if (plan.liveUntil) free.push({ day: addDays(plan.liveUntil, 1), by: 'your course' });
-  if (plan.monthlyUntil && !plan.monthlyRenews) free.push({ day: addDays(plan.monthlyUntil, 1), by: 'your monthly' });
+  const have = access ?? (await loadLiveAccess(env, email, plan, today));
+  // A monthly that still renews is not something a new one waits for (the
+  // checkout refuses a second one anyway).
+  const latest =
+    have.covers
+      .filter((c) => !(c.kind === 'monthly' && plan.monthlyRenews) && c.until >= today)
+      .sort((x, y) => x.until.localeCompare(y.until))
+      .pop() ?? null;
+  if (!latest) return { startsOn: null, coveredUntil: null, coveredBy: null };
+  const firstFree = addDays(latest.until, 1);
+  const deferDays = daysFrom(today, firstFree);
+  const startsOn = deferDays >= MONTHLY_DEFER_MIN_DAYS && deferDays <= MONTHLY_DEFER_MAX_DAYS ? firstFree : null;
+  return { startsOn, coveredUntil: latest.until, coveredBy: latest.by };
+}
 
-  const app = await Promise.race([
-    askApp(env, (a) => a.member({ email: email.trim().toLowerCase() })),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), APP_ASK_MS)),
-  ]);
-  if (app?.ok) {
-    for (const c of app.data.courses) {
-      if (c.state === 'ended' || c.state === 'revoked' || !c.liveUntil) continue;
-      const v = c.liveUntil.trim();
-      const day = /^\d{4}-\d{2}-\d{2}$/.test(v) ? addDays(v, 1) : businessDayOf(v);
-      if (day) free.push({ day, by: c.label });
-    }
+// ── The answer the live-pass page shows for one address ─────────────────────
+//
+// One object for the page (rendered on the server when the address came in the
+// link) and for /api/courses/live-pass-status (asked from the browser when it is
+// typed): the same words either way. `access` is the personal panel — "Your
+// live access is until …" and the passes they hold; `access_after` is, per pass
+// length, the day their live access would run to with that pass added behind
+// what they have (an estimate: a pass ends with its last session).
+export type LivePassStatus = {
+  email: string;
+  live_until: string | null;
+  pass_running: boolean;
+  monthly_running: boolean;
+  monthly_until: string | null;
+  monthly_starts_on: string | null;
+  monthly_covered_until: string | null;
+  monthly_covered_by: string | null;
+  periods: LivePassPlan['periods'];
+  access: {
+    until: string | null;
+    approx: boolean;
+    headline: string;
+    note: string | null;
+    items: Array<{ icon: string; title: string; detail: string }>;
+  };
+  access_after: Record<string, string>;
+  certification: { holds_course: boolean; may_certify: boolean; ends_on: string | null; open: boolean };
+  twelve_week: { holds: boolean; live_until: string | null };
+};
+
+const sayDay = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+const countOf = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+// What a pass still holds: "3 Q&As and 1 deepening session to come".
+function toComeWords(t: { qa: number; deepening: number }): string {
+  const parts: string[] = [];
+  if (t.qa > 0) parts.push(countOf(t.qa, 'Q&A', 'Q&As'));
+  if (t.deepening > 0) parts.push(countOf(t.deepening, 'deepening session', 'deepening sessions'));
+  return parts.length ? `${parts.join(' and ')} to come` : 'its last session has been held';
+}
+
+export function describeLiveAccess(
+  access: LiveAccess,
+  plan: Pick<LivePassPlan, 'liveUntil' | 'monthlyUntil'>,
+  monthlyRunning: boolean,
+): LivePassStatus['access'] {
+  const items: LivePassStatus['access']['items'] = [];
+  for (const c of access.covers) {
+    if (c.kind !== 'course') continue;
+    const by = c.by.startsWith('your ') ? `Y${c.by.slice(1)}` : c.by;
+    items.push({ icon: 'ph-graduation-cap', title: by, detail: `Live sessions until ${sayDay(c.until)}` });
+  }
+  for (const p of access.passes) {
+    items.push({
+      icon: 'ph-ticket',
+      title: p.label,
+      detail: p.toCome ? toComeWords(p.toCome) : p.contents,
+    });
+  }
+  if (plan.monthlyUntil) {
+    items.push({
+      icon: 'ph-repeat',
+      title: 'Live pass · monthly',
+      detail: access.monthlyRenews ? `Paid until ${sayDay(plan.monthlyUntil)}, renews that day` : `Cancelled, open until ${sayDay(plan.monthlyUntil)}`,
+    });
   }
 
-  const latest = free.filter((f) => f.day > today).sort((x, y) => x.day.localeCompare(y.day)).pop() ?? null;
-  if (!latest) return { startsOn: null, coveredUntil: null, coveredBy: null };
-  const coveredUntil = addDays(latest.day, -1);
-  const deferDays = daysFrom(today, latest.day);
-  const startsOn = deferDays >= MONTHLY_DEFER_MIN_DAYS && deferDays <= MONTHLY_DEFER_MAX_DAYS ? latest.day : null;
-  return { startsOn, coveredUntil, coveredBy: latest.by };
+  let headline: string;
+  let note: string | null = null;
+  if (access.monthlyRenews && plan.monthlyUntil) {
+    headline = 'Your monthly keeps your live sessions open.';
+    note = `It is paid until ${sayDay(plan.monthlyUntil)} and renews that day, for as long as you keep it.`;
+  } else if (access.until) {
+    headline = `Your live access is until ${access.approx ? 'around ' : ''}${sayDay(access.until)}.`;
+    if (access.passes.length > 1) {
+      note = `You hold ${access.passes.length} live passes. They follow one another, so your live access runs to the end of the last.`;
+    }
+    if (access.approx) {
+      note = `${note ? `${note} ` : ''}A pass ends with its last session, so the exact day follows the calendar.`;
+    }
+  } else if (monthlyRunning) {
+    headline = 'Your monthly is agreed and has not started yet.';
+  } else {
+    headline = 'You have no live sessions at the moment.';
+    note = 'A pass or the monthly opens them again from today.';
+  }
+  return { until: access.until, approx: access.approx, headline, note, items };
+}
+
+export async function loadLivePassStatus(
+  env: { APP_ADMIN?: unknown },
+  db: D1Database,
+  email: string,
+  today = brusselsToday(),
+): Promise<{ status: LivePassStatus; details: BuyerDetails }> {
+  const [plan, details, monthly] = await Promise.all([
+    planLivePass(db, email, { today }),
+    loadBuyerDetails(db, email),
+    findRunningMonthly(db, email),
+  ]);
+  const access = await loadLiveAccess(env, email, plan, today);
+  // When a monthly taken today would be first charged: the day the live
+  // sessions they already have end (here or in the member app), else today.
+  const start = await planMonthlyStart(env, email, plan, today, access);
+
+  // With this pass added: its months, counted from the day after what they
+  // have (or from the day it starts, when that is later).
+  const accessAfter: Record<string, string> = {};
+  for (const months of LIVE_PASS_MONTHS) {
+    const startsOn = plan.periods[months].startsOn;
+    const from = access.until && addDays(access.until, 1) > startsOn ? addDays(access.until, 1) : startsOn;
+    accessAfter[String(months)] = addDays(addMonths(from, months), -1);
+  }
+
+  return {
+    details,
+    status: {
+      email,
+      live_until: plan.liveUntil,
+      pass_running: access.passes.length > 0,
+      // A monthly already running: the page offers "Manage my monthly pass" instead
+      // of a second one (a yes/no only — the manage link goes by email).
+      monthly_running: !!monthly,
+      monthly_until: plan.monthlyUntil,
+      monthly_starts_on: start.startsOn,
+      monthly_covered_until: start.coveredUntil,
+      monthly_covered_by: start.coveredBy,
+      periods: plan.periods,
+      access: describeLiveAccess(access, plan, !!monthly),
+      access_after: accessAfter,
+      certification: {
+        holds_course: plan.window.holdsCourse,
+        may_certify: plan.window.mayCertify,
+        ends_on: plan.window.endsOn,
+        open: plan.window.open,
+      },
+      twelve_week: { holds: plan.twelveWeek.holds, live_until: plan.twelveWeek.liveUntil },
+    },
+  };
 }
 
 function daysFrom(a: string, b: string): number {

@@ -1332,7 +1332,7 @@ export function livePassMonthlyScheduledEmail(ctx: LivePassMonthlyScheduledCtx):
 export function livePassMonthlyStoppedEmail(ctx: { name?: string | null; passUrl: string }): EmailContent {
   const body =
     "This month's payment for your monthly live pass didn't go through, even after a few tries, so the monthly has stopped and nothing more will be charged. Often it is simply a card that has expired or been replaced.";
-  const back = 'Whenever you would like to come back to the sessions, you can start a new monthly — or a pass for 1, 3 or 6 months — from the page below.';
+  const back = 'Whenever you would like to come back to the sessions, you can start a new monthly — or a pass for 1, 3, 6 or 12 months — from the page below.';
   const html = shell({
     preheader: "This month's payment didn't go through, so your monthly has stopped.",
     heading: 'Your monthly live pass has stopped',

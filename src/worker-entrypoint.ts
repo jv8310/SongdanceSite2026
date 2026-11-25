@@ -86,7 +86,7 @@ const MOVED_URLS: Record<string, string> = {
   // along on the redirect.
   '/admin/workshops/stats': '/admin/stats',
   // The CEEE monthly membership (once a Mighty Networks plan) is replaced by
-  // the live pass — the same Q&As and deepening sessions, for 1, 3 or 6
+  // the live pass — the same Q&As and deepening sessions, for 1, 3, 6 or 12
   // months (October 2026). Both spellings of the old link are still out there,
   // in Drip's "Join CEEE Monthly" mail among others.
   '/ceee': '/courses/live-pass',
@@ -193,12 +193,12 @@ export class AppBridge extends WorkerEntrypoint<Env> {
     return refundFromApp(this.env, input);
   }
 
-  // Give a free live pass (1, 3 or 6 months), with or without the
+  // Give a free live pass (1, 3, 6 or 12 months), with or without the
   // certification-window extension, as "Give a free live pass" on the People
   // page does (src/lib/courses/live-pass-grant.ts). A refusal answers
   // { ok: false, error, message }; the same grant twice within two minutes
   // answers the first one again (repeated: true).
-  grantLivePass(input: { email: string; months: 1 | 3 | 6; extend: boolean; note: string; actor: string; notify?: boolean }) {
+  grantLivePass(input: { email: string; months: 1 | 3 | 6 | 12; extend: boolean; note: string; actor: string; notify?: boolean }) {
     return grantLivePassFromApp(this.env, input);
   }
 

@@ -13,7 +13,13 @@
 // then — for a 12-week student only — the certification course, then the
 // prices and the checkout.
 //
-// Beside the three passes, the monthly (October 2026): €52 the first month, then
+// The registration card (November 2026) starts with the email address: once it
+// is known (typed, or from the link) the card says "Your live access is until …"
+// with the passes they hold, cumulated, and only then offers the choice — a
+// toggle between a one-time pass (1, 3, 6 or 12 months) and the monthly
+// subscription — and the rest of the form.
+//
+// Beside the passes, the monthly (October 2026): €52 the first month, then
 // €44 a month, renews until cancelled, every session while it runs (live-pass.ts,
 // "The monthly's price"). ?months=monthly picks
 // it; an address that already has one running sees "Manage my monthly pass" instead,
@@ -35,8 +41,7 @@ import {
   parseLivePassMonths,
   type LivePassMonths,
 } from '../../lib/courses/live-pass';
-import { loadBuyerDetails, planLivePass, planMonthlyStart } from '../../lib/courses/live-pass-plan';
-import { findRunningMonthly } from '../../lib/courses/live-pass-monthly';
+import { loadLivePassStatus, type LivePassStatus } from '../../lib/courses/live-pass-plan';
 
 export const prerender = false;
 
@@ -55,43 +60,20 @@ const nameParam = (k: string) => (params.get(k) ?? '').trim().slice(0, 100);
 
 // With the address in the link, the page arrives answered: the same status the
 // form asks for when an address is typed (/api/courses/live-pass-status).
-let initialStatus: Record<string, unknown> | null = null;
+let initialStatus: LivePassStatus | null = null;
 let details = { firstName: null as string | null, lastName: null as string | null, country: null as string | null };
 if (emailPrefill) {
   try {
-    const [plan, d, monthly] = await Promise.all([
-      planLivePass(env.DB, emailPrefill),
-      loadBuyerDetails(env.DB, emailPrefill),
-      findRunningMonthly(env.DB, emailPrefill),
-    ]);
-    details = d;
-    const start = await planMonthlyStart(env, emailPrefill, plan);
-    initialStatus = {
-      live_until: plan.liveUntil,
-      pass_running: plan.passRunning,
-      monthly_running: !!monthly,
-      monthly_until: plan.monthlyUntil,
-      monthly_starts_on: start.startsOn,
-      monthly_covered_until: start.coveredUntil,
-      monthly_covered_by: start.coveredBy,
-      periods: plan.periods,
-      certification: {
-        holds_course: plan.window.holdsCourse,
-        may_certify: plan.window.mayCertify,
-        ends_on: plan.window.endsOn,
-        open: plan.window.open,
-      },
-      twelve_week: { holds: plan.twelveWeek.holds, live_until: plan.twelveWeek.liveUntil },
-    };
+    ({ status: initialStatus, details } = await loadLivePassStatus(env, env.DB, emailPrefill));
   } catch {
     /* the form asks again from the browser */
   }
 }
 const firstNamePrefill = nameParam('first_name') || details.firstName || '';
 const lastNamePrefill = nameParam('last_name') || details.lastName || '';
-const certInitial = initialStatus?.certification as { holds_course?: boolean } | undefined;
+const certInitial = initialStatus?.certification;
 const showAddon = !!certInitial?.holds_course;
-const twelveInitial = initialStatus?.twelve_week as { holds?: boolean } | undefined;
+const twelveInitial = initialStatus?.twelve_week;
 const showUpgrade = !!twelveInitial?.holds && !certInitial?.holds_course;
 
 // The day a pass starts, said before the options when their course (or a
@@ -100,6 +82,16 @@ const showUpgrade = !!twelveInitial?.holds && !certInitial?.holds_course;
 const fmtDay = (day: string) =>
   new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 const initialPeriods = initialStatus?.periods as Record<string, { startsOn: string }> | undefined;
+const accessInitial = initialStatus?.access ?? null;
+const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+// Under each pass once the address is known. Same words as the browser's datesLine().
+const datesLine = (m: number) => {
+  const after = initialStatus?.access_after?.[String(m)];
+  const startsOn = initialPeriods?.[String(m)]?.startsOn;
+  if (!after) return '';
+  const until = `Live access until around ${fmtDay(after)}`;
+  return startsOn && startsOn > today && !initialStatus?.pass_running ? `From ${fmtDay(startsOn)} · ${until.charAt(0).toLowerCase()}${until.slice(1)}` : until;
+};
 const monthlyRunning = !!initialStatus?.monthly_running;
 const startMonthly = chosenMonthly && !monthlyRunning;
 // A monthly taken now starts when the live sessions they already have end
@@ -158,7 +150,7 @@ function startNoticeText(
     lines.push(
       monthly
         ? 'You have a pass running. A monthly starts the day you take it, alongside it — a new pass would wait for the one you have.'
-        : 'Your current pass comes first: a new one continues with the session after its last.',
+        : 'The pass you have comes first: a new one continues with the session after its last.',
     );
   }
   return lines.join(' ');
@@ -247,11 +239,11 @@ const upgradeBenefits: { icon: string; lead: string; rest: string }[] = [
 const faq: { q: string; a: string }[] = [
   {
     q: 'How long does a pass last?',
-    a: 'As long as its sessions: 4, 12 or 24 Q&As and 1, 3 or 6 deepening sessions — the next ones on the calendar from the day it starts. A week without a Q&A costs you nothing: your pass simply holds the next one. It ends after the last of its sessions, and you keep their replays for 2 months.',
+    a: 'As long as its sessions: 4, 12, 24 or 48 Q&As and 1, 3, 6 or 12 deepening sessions — the next ones on the calendar from the day it starts. A week without a Q&A costs you nothing: your pass simply holds the next one. It ends after the last of its sessions, and you keep their replays for 2 months.',
   },
   {
     q: 'When does my pass start?',
-    a: 'The day you buy it — unless your course still gives you the live sessions: then it starts the day after they end, so you never pay twice for the same session. If you already have a pass, the new one continues with the session after its last. Fill in your email above and the start date shows before you pay.',
+    a: 'The day you buy it — unless your course still gives you the live sessions: then it starts the day after they end, so you never pay twice for the same session. If you already have a pass, the new one continues with the session after its last, so two passes always add up. Fill in your email above and you see until when your live access runs, before you pay.',
   },
   {
     q: 'I’m in the 12-week course',
@@ -274,7 +266,7 @@ const faq: { q: string; a: string }[] = [
 
 <SiteLayout
   title="Live pass — the weekly Q&As and monthly deepening sessions"
-  description="Sound with us live: 4, 12 or 24 Q&As and 1, 3 or 6 deepening sessions, or monthly until you cancel. For anyone whose course no longer includes the live sessions, or never did."
+  description="Sound with us live: a pass for 1, 3, 6 or 12 months of Q&As and deepening sessions, or monthly until you cancel. For anyone whose course no longer includes the live sessions, or never did."
 >
   <main class="lp">
     {welcome && (
@@ -418,8 +410,9 @@ const faq: { q: string; a: string }[] = [
         <p class="lp-eyebrow">Choose your pass</p>
         <h2 class="lp-h2" id="lp-buy-title">Pay once, <em>or go monthly</em></h2>
         <p class="lp-section-lede">
-          The longer the pass, the less each session costs. Or take the monthly, and cancel any
-          time. Prices follow your country.
+          A pass for 1, 3, 6 or 12 months: the longer it is, the less each session costs. Or take
+          the monthly, and cancel any time. Passes add up, so your live access always runs to the
+          end of the last one.
         </p>
       </div>
 
@@ -432,66 +425,118 @@ const faq: { q: string; a: string }[] = [
           data-monthly-prices={JSON.stringify(monthlyPrices)}
           data-status={initialStatus ? JSON.stringify(initialStatus) : undefined}
         >
-          <p class="lp-status" data-lp-status role="status" hidden={!startNotice}>{startNotice}</p>
+          {/* 1 — The address first: everything after it is said for this person. */}
+          <div class="lp-who">
+            <h3 class="lp-step lp-step--first">Start with your email address</h3>
+            <p class="lp-who-hint">
+              The address you use for your courses. We look up the live sessions you already have, so
+              you see until when your access runs and what a pass would add.
+            </p>
+            <div class="lp-who-row">
+              <input
+                type="email"
+                name="email"
+                autocomplete="email"
+                required
+                maxlength="254"
+                placeholder="you@example.com"
+                aria-label="Your email address"
+                value={emailPrefill || undefined}
+                data-lp-email
+              />
+              <button type="button" class="sd-btn sd-btn-primary" data-lp-lookup>
+                <span data-lp-lookup-label>{initialStatus ? 'Update' : 'Show my options'}</span>
+                <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
+              </button>
+            </div>
+            <p class="lp-error" role="alert" data-lp-who-error hidden></p>
+          </div>
 
-          <fieldset class="lp-options">
-            <legend class="lp-sr">Choose your pass</legend>
-            <div class="lp-plans">
-              {offers.map((o) => {
-                const s = livePassSessions(o.months);
-                return (
-                  <label class:list={['lp-plan', o.months === 6 && 'lp-plan--best']}>
-                    <input
-                      type="radio"
-                      name="months"
-                      value={o.months}
-                      checked={!startMonthly && o.months === chosenMonths}
-                      data-lp-contents={livePassContents(o.months)}
-                    />
-                    {o.months === 6 && <span class="lp-ribbon">Best value</span>}
-                    <span class="lp-plan-check" aria-hidden="true"><i class="ph-light ph-check"></i></span>
-                    <span class="lp-plan-len">{aboutLabel(o.months)}</span>
-                    <span class="lp-plan-price">
-                      <strong data-lp-price={o.months}>{money(o.price_cents)}</strong>
-                      {o.discount_percent > 0 && <s class="lp-was" data-lp-was={o.months}>{money(o.full_cents)}</s>}
-                    </span>
-                    <span class="lp-plan-per">
-                      <span><span data-lp-per={o.months}>{money(perMonthCents(o))}</span> a month</span>
-                      {o.discount_percent > 0 && <span class="lp-save">{o.discount_percent}% off</span>}
-                    </span>
-                    <span class="lp-plan-holds">
-                      <span><i class="ph-light ph-chats-circle" aria-hidden="true"></i> {s.qa} Q&amp;As</span>
-                      <span><i class="ph-light ph-moon-stars" aria-hidden="true"></i> {s.deepening} deepening session{s.deepening === 1 ? '' : 's'}</span>
-                    </span>
-                    <span class="lp-plan-dates" data-lp-dates={o.months} hidden></span>
-                  </label>
-                );
-              })}
+          {/* 2 — Everything below waits for the address. */}
+          <div data-lp-rest hidden={!initialStatus}>
+            <div class="lp-access" data-lp-access role="status">
+              <p class="lp-access-head" data-lp-access-head>{accessInitial?.headline ?? ''}</p>
+              <p class="lp-access-note" data-lp-access-note hidden={!accessInitial?.note}>{accessInitial?.note ?? ''}</p>
+              <ul class="lp-access-list" data-lp-access-list hidden={!accessInitial?.items.length}>
+                {(accessInitial?.items ?? []).map((it) => (
+                  <li>
+                    <i class={`ph-light ${it.icon}`} aria-hidden="true"></i>
+                    <span><strong>{it.title}</strong> <span class="lp-access-detail">{it.detail}</span></span>
+                  </li>
+                ))}
+              </ul>
             </div>
 
-            <p class="lp-or"><span>or</span></p>
+            <div class="lp-toggle" role="group" aria-label="How would you like to pay?">
+              <button type="button" class="lp-toggle-btn" data-lp-mode="pass" aria-pressed={startMonthly ? 'false' : 'true'}>
+                <i class="ph-light ph-ticket" aria-hidden="true"></i> One-time pass
+              </button>
+              <button type="button" class="lp-toggle-btn" data-lp-mode="monthly" aria-pressed={startMonthly ? 'true' : 'false'}>
+                <i class="ph-light ph-repeat" aria-hidden="true"></i> Monthly subscription
+              </button>
+            </div>
 
-            <label class="lp-plan lp-plan--monthly" data-lp-monthly-option>
-              <input type="radio" name="months" value="monthly" checked={startMonthly} disabled={monthlyRunning} />
-              <span class="lp-plan-check" aria-hidden="true"><i class="ph-light ph-check"></i></span>
-              <span class="lp-monthly-icon" aria-hidden="true"><i class="ph-light ph-repeat"></i></span>
-              <span class="lp-monthly-main">
-                <span class="lp-plan-len">Monthly <span class="lp-save lp-save--plain">Cancel any time</span></span>
-                <span class="lp-monthly-desc">Every Q&amp;A and deepening session while it runs. Renews each month until you cancel.</span>
-                <span class="lp-plan-dates" data-lp-monthly-starts hidden={!monthlyStartsOn || monthlyRunning}>
-                  {monthlyStartsOn ? `Starts ${fmtDay(monthlyStartsOn)} — nothing charged until then` : ''}
-                </span>
-                <span class="lp-plan-dates" data-lp-monthly-note hidden={!monthlyRunning}>
-                  {monthlyRunning ? 'You already have a monthly running — manage it below.' : ''}
-                </span>
-              </span>
-              {/* Leads with what it costs a month; the first month's higher price sits under it. */}
-              <span class="lp-monthly-price">
-                <span class="lp-monthly-rate"><strong data-lp-monthly-price>{money(monthlyCents)}</strong> <span class="lp-per">a month</span></span>
-                <span class="lp-monthly-first">First month <span data-lp-monthly-first>{money(monthlyFirstCents)}</span></span>
-              </span>
-            </label>
-          </fieldset>
+            <p class="lp-status" data-lp-status role="status" hidden={!startNotice}>{startNotice}</p>
+
+            <fieldset class="lp-options">
+              <legend class="lp-sr">Choose your pass</legend>
+              <div class="lp-plans" data-lp-panel="pass" hidden={startMonthly}>
+                {offers.map((o) => {
+                  const s = livePassSessions(o.months);
+                  const best = o.months === 12;
+                  return (
+                    <label class:list={['lp-plan', best && 'lp-plan--best']}>
+                      <input
+                        type="radio"
+                        name="months"
+                        value={o.months}
+                        checked={!startMonthly && o.months === chosenMonths}
+                        data-lp-contents={livePassContents(o.months)}
+                      />
+                      {best && <span class="lp-ribbon">Best value</span>}
+                      <span class="lp-plan-check" aria-hidden="true"><i class="ph-light ph-check"></i></span>
+                      <span class="lp-plan-len">{aboutLabel(o.months)}</span>
+                      <span class="lp-plan-price">
+                        <strong data-lp-price={o.months}>{money(o.price_cents)}</strong>
+                        {o.discount_percent > 0 && <s class="lp-was" data-lp-was={o.months}>{money(o.full_cents)}</s>}
+                      </span>
+                      <span class="lp-plan-per">
+                        <span><span data-lp-per={o.months}>{money(perMonthCents(o))}</span> a month</span>
+                        {o.discount_percent > 0 && <span class="lp-save">{o.discount_percent}% off</span>}
+                      </span>
+                      <span class="lp-plan-holds">
+                        <span><i class="ph-light ph-chats-circle" aria-hidden="true"></i> {s.qa} Q&amp;As</span>
+                        <span><i class="ph-light ph-moon-stars" aria-hidden="true"></i> {s.deepening} deepening session{s.deepening === 1 ? '' : 's'}</span>
+                      </span>
+                      <span class="lp-plan-dates" data-lp-dates={o.months} hidden={!datesLine(o.months)}>{datesLine(o.months)}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div data-lp-panel="monthly" hidden={!startMonthly}>
+                <label class="lp-plan lp-plan--monthly" data-lp-monthly-option>
+                  <input type="radio" name="months" value="monthly" checked={startMonthly} disabled={monthlyRunning} />
+                  <span class="lp-plan-check" aria-hidden="true"><i class="ph-light ph-check"></i></span>
+                  <span class="lp-monthly-icon" aria-hidden="true"><i class="ph-light ph-repeat"></i></span>
+                  <span class="lp-monthly-main">
+                    <span class="lp-plan-len">Monthly <span class="lp-save lp-save--plain">Cancel any time</span></span>
+                    <span class="lp-monthly-desc">Every Q&amp;A and deepening session while it runs. Renews each month until you cancel.</span>
+                    <span class="lp-plan-dates" data-lp-monthly-starts hidden={!monthlyStartsOn || monthlyRunning}>
+                      {monthlyStartsOn ? `Starts ${fmtDay(monthlyStartsOn)} — nothing charged until then` : ''}
+                    </span>
+                    <span class="lp-plan-dates" data-lp-monthly-note hidden={!monthlyRunning}>
+                      {monthlyRunning ? 'You already have a monthly — manage it below.' : ''}
+                    </span>
+                  </span>
+                  {/* Leads with what it costs a month; the first month's higher price sits under it. */}
+                  <span class="lp-monthly-price">
+                    <span class="lp-monthly-rate"><strong data-lp-monthly-price>{money(monthlyCents)}</strong> <span class="lp-per">a month</span></span>
+                    <span class="lp-monthly-first">First month <span data-lp-monthly-first>{money(monthlyFirstCents)}</span></span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
 
           {/* Only for a 9-month (certification) student; shown once the address says so. */}
           <label class="lp-addon" data-lp-addon hidden={!showAddon || startMonthly}>
@@ -502,8 +547,8 @@ const faq: { q: string; a: string }[] = [
                 <span class="lp-addon-price">+<span data-lp-ext>{money(offers.find((o) => o.months === chosenMonths)!.extension_cents)}</span></span>
               </span>
               <span class="lp-addon-body">
-                Keeps your window to apply for certification open for the months of your pass (1, 3
-                or 6, from the day it starts). For certification students whose window has closed.
+                Keeps your window to apply for certification open for the months of your pass (1, 3,
+                6 or 12, from the day it starts). For certification students whose window has closed.
                 Adds {CERT_EXTENSION_PERCENT}% to the pass.
               </span>
               <span class="lp-addon-note" data-lp-addon-note hidden></span>
@@ -532,18 +577,6 @@ const faq: { q: string; a: string }[] = [
                 required
                 maxlength="100"
                 value={lastNamePrefill || undefined}
-              />
-            </label>
-            <label class="lp-field lp-field--full">
-              <span>Email <span class="lp-hint">— the address you use for your courses</span></span>
-              <input
-                type="email"
-                name="email"
-                autocomplete="email"
-                required
-                maxlength="254"
-                value={emailPrefill || undefined}
-                data-lp-email
               />
             </label>
             <label class="lp-field lp-field--full">
@@ -595,6 +628,7 @@ const faq: { q: string; a: string }[] = [
             <span data-lp-note-monthly-text>{monthlyNoteText(monthlyStartsOn)}</span>
           </p>
           <p class="lp-error" role="alert" data-lp-error hidden></p>
+          </div>
         </form>
         <datalist id="lp-country-list">
           {COUNTRIES.map((c) => (
@@ -654,6 +688,8 @@ const faq: { q: string; a: string }[] = [
     monthly_covered_until?: string | null;
     monthly_covered_by?: string | null;
     periods: Record<string, Period>;
+    access?: { until: string | null; approx: boolean; headline: string; note: string | null; items: Array<{ icon: string; title: string; detail: string }> };
+    access_after?: Record<string, string>;
     certification: { holds_course: boolean; may_certify: boolean; ends_on: string | null; open: boolean };
     twelve_week?: { holds: boolean; live_until: string | null };
     details?: { first_name: string | null; last_name: string | null; country: string | null };
@@ -687,6 +723,22 @@ const faq: { q: string; a: string }[] = [
     const extEl = form.querySelector<HTMLElement>('[data-lp-ext]')!;
     const errEl = form.querySelector<HTMLElement>('[data-lp-error]')!;
     const buttons = Array.from(form.querySelectorAll<HTMLButtonElement>('[data-lp-submit]'));
+    const restEl = form.querySelector<HTMLElement>('[data-lp-rest]')!;
+    const lookupBtn = form.querySelector<HTMLButtonElement>('[data-lp-lookup]')!;
+    const lookupLabel = form.querySelector<HTMLElement>('[data-lp-lookup-label]')!;
+    const whoError = form.querySelector<HTMLElement>('[data-lp-who-error]')!;
+    const accessEl = form.querySelector<HTMLElement>('[data-lp-access]')!;
+    const accessHead = form.querySelector<HTMLElement>('[data-lp-access-head]')!;
+    const accessNote = form.querySelector<HTMLElement>('[data-lp-access-note]')!;
+    const accessList = form.querySelector<HTMLElement>('[data-lp-access-list]')!;
+    const modeButtons = Array.from(form.querySelectorAll<HTMLButtonElement>('[data-lp-mode]'));
+    const panels = Array.from(form.querySelectorAll<HTMLElement>('[data-lp-panel]'));
+    const passInputs = Array.from(form.querySelectorAll<HTMLInputElement>('[name="months"]')).filter((r) => r.value !== 'monthly');
+    // The toggle: a one-time pass or the monthly subscription. The radios stay
+    // the form's own; the toggle picks which of them is checked.
+    let mode: 'pass' | 'monthly' = monthlyInput.checked ? 'monthly' : 'pass';
+    let lastPass = passInputs.find((r) => r.checked)?.value ?? '3';
+    let lookedUp = '';
     let status: Status | null = form.dataset.status ? (JSON.parse(form.dataset.status) as Status) : null;
     let countryTouched = false;
 
@@ -697,13 +749,64 @@ const faq: { q: string; a: string }[] = [
         year: 'numeric',
         timeZone: 'UTC',
       });
-    const isMonthly = () => monthlyInput.checked;
-    // The chosen pass length; 3 while the monthly is chosen (only the pass
-    // pieces read it then).
-    const months = () => {
-      const v = form.querySelector<HTMLInputElement>('[name="months"]:checked')?.value;
-      return v && v !== 'monthly' ? Number(v) : 3;
-    };
+    const isMonthly = () => mode === 'monthly';
+    // The chosen pass length (the last one chosen, while the monthly is shown).
+    const months = () => Number(lastPass);
+    const todayDay = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+
+    function setMode(next: 'pass' | 'monthly') {
+      mode = next;
+      modeButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lpMode === mode)));
+      panels.forEach((el) => (el.hidden = el.dataset.lpPanel !== mode));
+      if (mode === 'monthly') {
+        if (!monthlyInput.disabled) monthlyInput.checked = true;
+      } else {
+        const pick = passInputs.find((r) => r.value === lastPass) ?? passInputs[0];
+        pick.checked = true;
+      }
+      showLiveUntil();
+      repaint();
+    }
+
+    // "Your live access is until …", and the passes they hold. The words come
+    // from the server (describeLiveAccess), the same ones it renders itself.
+    function renderAccess() {
+      const a = status?.access;
+      accessEl.hidden = !a;
+      if (!a) return;
+      accessHead.textContent = a.headline;
+      accessNote.hidden = !a.note;
+      accessNote.textContent = a.note ?? '';
+      accessList.hidden = a.items.length === 0;
+      accessList.replaceChildren(
+        ...a.items.map((it) => {
+          const li = document.createElement('li');
+          const icon = document.createElement('i');
+          icon.className = `ph-light ${it.icon}`;
+          icon.setAttribute('aria-hidden', 'true');
+          const text = document.createElement('span');
+          const title = document.createElement('strong');
+          title.textContent = it.title;
+          const detail = document.createElement('span');
+          detail.className = 'lp-access-detail';
+          detail.textContent = it.detail;
+          text.append(title, ' ', detail);
+          li.append(icon, text);
+          return li;
+        }),
+      );
+    }
+
+    // Same words as the server's datesLine().
+    function datesLine(key: string): string {
+      const after = status?.access_after?.[key];
+      const startsOn = status?.periods?.[key]?.startsOn;
+      if (!after) return startsOn ? `From ${fmtDay(startsOn)}` : '';
+      const until = `Live access until around ${fmtDay(after)}`;
+      return startsOn && startsOn > todayDay && !status?.pass_running
+        ? `From ${fmtDay(startsOn)} · ${until.charAt(0).toLowerCase()}${until.slice(1)}`
+        : until;
+    }
     const currency = () => albumCurrencyForCountry(countryHidden.value || null);
 
     function repaint() {
@@ -739,29 +842,29 @@ const faq: { q: string; a: string }[] = [
         summaryLabel.textContent = 'Live pass · monthly';
       } else {
         totalEl.textContent = formatMoney(o.price_cents + ext, cur);
-        const contents = form!.querySelector<HTMLInputElement>('[name="months"]:checked')?.dataset.lpContents ?? '';
+        const contents = passInputs.find((r) => r.value === lastPass)?.dataset.lpContents ?? '';
         summaryLabel.textContent = `Live pass · ${contents}${ext ? ' + certification window' : ''}`;
       }
       notePass.hidden = monthly;
       noteMonthly.hidden = !monthly;
 
-      // One monthly per address: with one running, the option steps aside.
+      // One monthly per address: with one running, there is nothing to pay for here.
       const running = !!status?.monthly_running;
       monthlyInput.disabled = running;
-      if (running && monthly) {
-        monthlyInput.checked = false;
-        form!.querySelector<HTMLInputElement>('[name="months"][value="3"]')!.checked = true;
-      }
+      if (running) monthlyInput.checked = false;
+      else if (monthly) monthlyInput.checked = true;
       monthlyNote.hidden = !running;
-      monthlyNote.textContent = running ? 'You already have a monthly running — manage it below.' : '';
+      monthlyNote.textContent = running ? 'You already have a monthly — manage it below.' : '';
+      buttons.forEach((b) => (b.disabled = running && monthly));
 
       // The day each pass would start, and the add-on's verdict, once the
       // address is known. No end date: a pass ends with its last session.
       for (const [key, p] of Object.entries(status?.periods ?? {})) {
         const el = form!.querySelector<HTMLElement>(`[data-lp-dates="${key}"]`);
-        if (!el) continue;
-        el.hidden = false;
-        el.textContent = `From ${fmtDay(p.startsOn)}`;
+        if (!el || !p) continue;
+        const line = datesLine(key);
+        el.hidden = !line;
+        el.textContent = line;
       }
       // The add-on is for 9-month students only; the 12-week card for 12-week
       // students who are not (yet) on the 9 months.
@@ -839,35 +942,58 @@ const faq: { q: string; a: string }[] = [
         lines.push(
           monthly
             ? 'You have a pass running. A monthly starts the day you take it, alongside it — a new pass would wait for the one you have.'
-            : 'Your current pass comes first: a new one continues with the session after its last.',
+            : 'The pass you have comes first: a new one continues with the session after its last.',
         );
       }
       statusEl.hidden = lines.length === 0;
       statusEl.textContent = lines.join(' ');
     }
 
-    async function lookUp() {
+    // The address first: everything else is shown once it has been looked up.
+    // `ask` is true when the visitor pressed the button (or Enter): then a
+    // missing or mistyped address is said, and a lookup that fails still opens
+    // the form (the checkout checks everything again).
+    async function lookUp(ask = false) {
       const email = emailInput.value.trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        if (ask) {
+          whoError.textContent = 'Please enter a valid email address.';
+          whoError.hidden = false;
+        }
+        return;
+      }
+      whoError.hidden = true;
+      if (email === lookedUp && status) {
+        restEl.hidden = false;
+        return;
+      }
+      lookupBtn.disabled = true;
       try {
         const res = await fetch('/api/courses/live-pass-status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
         });
-        if (!res.ok) return;
+        if (!res.ok) throw new Error('status');
         const fresh = (await res.json()) as Status;
         const wasCertStudent = !!status?.certification.holds_course;
         status = fresh;
+        lookedUp = email;
         fillDetails(fresh.details);
         // Arrived with ?extend=1 and the address only now known: tick it for them.
         if (wantsExtension && !wasCertStudent && fresh.certification.holds_course) addonInput.checked = true;
         if (upgradeLink) upgradeLink.href = `/courses/certification?email=${encodeURIComponent(email)}`;
-        showLiveUntil();
-        repaint();
       } catch {
         /* the page works without it; the checkout checks again */
+        if (email !== lookedUp) status = null;
+      } finally {
+        lookupBtn.disabled = false;
       }
+      restEl.hidden = false;
+      lookupLabel.textContent = 'Update';
+      renderAccess();
+      showLiveUntil();
+      repaint();
     }
 
     const resolveCountry = () => {
@@ -878,17 +1004,24 @@ const faq: { q: string; a: string }[] = [
     };
     (['input', 'change', 'blur'] as const).forEach((ev) => countrySearch.addEventListener(ev, resolveCountry));
     countrySearch.addEventListener('input', () => (countryTouched = true));
-    form.querySelectorAll<HTMLInputElement>('[name="months"]').forEach((r) =>
+    passInputs.forEach((r) =>
       r.addEventListener('change', () => {
+        if (r.checked) lastPass = r.value;
         showLiveUntil();
         repaint();
       }),
     );
+    modeButtons.forEach((b) => b.addEventListener('click', () => setMode(b.dataset.lpMode === 'monthly' ? 'monthly' : 'pass')));
     addonInput.addEventListener('change', repaint);
-    emailInput.addEventListener('change', lookUp);
-    emailInput.addEventListener('blur', lookUp);
-    showLiveUntil();
-    repaint();
+    lookupBtn.addEventListener('click', () => void lookUp(true));
+    emailInput.addEventListener('change', () => void lookUp());
+    emailInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      void lookUp(true);
+    });
+    if (status) lookedUp = emailInput.value.trim().toLowerCase();
+    setMode(mode);
     // Answered on the server when the address came in the link; asked here otherwise.
     if (emailInput.value && !status) void lookUp();
 
@@ -902,12 +1035,13 @@ const faq: { q: string; a: string }[] = [
     const fail = (msg: string) => {
       errEl.textContent = msg;
       errEl.hidden = false;
-      buttons.forEach((b) => (b.disabled = false));
+      repaint(); // puts the pay buttons back as the choice allows
     };
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errEl.hidden = true;
+      if (restEl.hidden) return void lookUp(true);
       const fd = new FormData(form);
       const get = (k: string) => String(fd.get(k) ?? '').trim();
       if (!get('first_name') || !get('last_name')) return fail('Please add your first and last name.');
@@ -1065,9 +1199,50 @@ const faq: { q: string; a: string }[] = [
     margin: 0 0 20px; padding: 12px 14px; border-radius: 10px; font-size: 15px; line-height: 1.5;
     color: var(--ink); background: rgba(92, 106, 74, 0.1); border-left: 3px solid var(--moss);
   }
+  .lp-step--first { padding-top: 0; border-top: 0; margin-bottom: 6px; }
+  .lp-who { margin-bottom: 4px; }
+  .lp-who-hint { font-size: 15px; line-height: 1.55; color: var(--ink-soft); margin: 0 0 14px; max-width: 46em; }
+  .lp-who-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .lp-who-row input {
+    flex: 1 1 260px; font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid rgba(42, 27, 42, 0.2); background: #fff; color: var(--ink);
+  }
+  .lp-who-row input:focus { outline: 2px solid var(--plum-soft); border-color: var(--plum); }
+  .lp-who-row .sd-btn { justify-content: center; }
+  [data-lp-rest] { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--line); }
+
+  .lp-access {
+    margin: 0 0 22px; padding: 18px 20px; border-radius: 14px;
+    background: rgba(92, 106, 74, 0.1); border-left: 3px solid var(--moss);
+  }
+  .lp-access-head { font-family: var(--font-display); font-size: 22px; line-height: 1.3; margin: 0; }
+  .lp-access-note { font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); margin: 6px 0 0; }
+  .lp-access-list { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid rgba(92, 106, 74, 0.25); display: grid; gap: 8px; }
+  .lp-access-list li { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.5; }
+  .lp-access-list i { flex: none; font-size: 19px; color: var(--moss-deep); margin-top: 1px; }
+  .lp-access-detail { color: var(--ink-soft); }
+  .lp-access-detail::before { content: '· '; }
+
+  .lp-toggle {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 0 auto 20px; max-width: 520px;
+    border-radius: 999px; background: var(--paper-deep);
+  }
+  .lp-toggle-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 14px;
+    border: 0; border-radius: 999px; background: transparent; color: var(--ink-soft);
+    font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.15s, color 0.15s;
+  }
+  .lp-toggle-btn i { font-size: 18px; }
+  .lp-toggle-btn[aria-pressed='true'] { background: var(--plum); color: var(--paper); }
+  .lp-toggle-btn:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+
   .lp-options { border: 0; padding: 0; margin: 0 0 20px; min-width: 0; }
-  .lp-plans { display: grid; gap: 14px; }
-  @media (min-width: 760px) { .lp-plans { grid-template-columns: repeat(3, 1fr); } }
+  .lp-plans { display: grid; gap: 18px 14px; }
+  @media (min-width: 600px) { .lp-plans { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 980px) {
+    .lp-plans { grid-template-columns: repeat(4, 1fr); }
+    .lp-plans .lp-plan-price strong { font-size: 34px; }
+  }
   .lp-plan {
     position: relative; display: flex; flex-direction: column; gap: 10px; padding: 22px 20px 20px;
     border: 1px solid var(--line-strong); border-radius: 16px; background: var(--paper); cursor: pointer;
@@ -1226,7 +1401,8 @@ const faq: { q: string; a: string }[] = [
     .lp { padding-top: 32px; }
     .lp-card { padding: 20px; }
     .lp-fields { grid-template-columns: 1fr; }
-    .lp-actions .sd-btn { flex: 1 1 100%; }
+    .lp-actions .sd-btn, .lp-who-row .sd-btn { flex: 1 1 100%; }
+    .lp-toggle-btn { font-size: 14px; padding: 10px 8px; }
     .lp-for { margin-bottom: 64px; }
   }
 </style>

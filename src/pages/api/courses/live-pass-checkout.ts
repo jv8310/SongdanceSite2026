@@ -91,7 +91,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const isMonthly = payload.months === 'monthly';
     const months = parseLivePassMonths(payload.months);
-    if (!months && !isMonthly) return json({ error: 'Please choose 1, 3 or 6 months, or monthly.' }, 400);
+    if (!months && !isMonthly) return json({ error: 'Please choose 1, 3, 6 or 12 months, or monthly.' }, 400);
     const withExtension = !isMonthly && payload.cert_extension === true;
 
     const firstName = (payload.first_name ?? '').trim();
@@ -118,7 +118,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (isMonthly) {
       return await startMonthly(env, locals, { firstName, lastName, email, countryCode, provider });
     }
-    if (!months) return json({ error: 'Please choose 1, 3 or 6 months, or monthly.' }, 400);
+    if (!months) return json({ error: 'Please choose 1, 3, 6 or 12 months, or monthly.' }, 400);
 
     const plan = await planLivePass(env.DB, email);
     const period = plan.periods[months];
