@@ -17,7 +17,7 @@
 // says whether it came from an ad, a broadcast or word of mouth, so this is the
 // blended figure, and the box says so. Profit is after ad spend only.
 //
-// New vs returning customers (forgiveness-buyers.ts): every order is read
+// New vs returning customers (course-buyers.ts): every order is read
 // against the buyer's earlier orders on the site and their product tags in
 // Drip. The ads' job is the new ones, so the box also prints ad spend per new
 // customer — all of the spend over the new customers, whoever the ads reached.
@@ -30,7 +30,7 @@ import {
   type MoneyOpts,
 } from '../workshops/stats';
 import { brusselsToday, shiftDays } from '../workshops/periods';
-import { classifyForgivenessBuyers, type BuyerVerdict } from './forgiveness-buyers';
+import { classifyCourseBuyers, type BuyerVerdict } from './course-buyers';
 import type { DripConfig } from '../registrations/drip';
 import {
   FORGIVENESS_PRODUCT_SLUG,
@@ -206,7 +206,11 @@ export async function computeForgivenessReport(
       eur: a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0),
     }));
 
-  const buyers = await classifyForgivenessBuyers(db, plainOrders, { drip: opts.drip });
+  const buyers = await classifyCourseBuyers(
+    db,
+    plainOrders.map((o) => ({ ...o, productSlug: FORGIVENESS_PRODUCT_SLUG })),
+    { drip: opts.drip },
+  );
   const orders: Order[] = plainOrders.map((o) => ({
     ...o,
     buyer: buyers.verdicts.get(o.id) ?? { kind: 'new', via: null, onList: false },

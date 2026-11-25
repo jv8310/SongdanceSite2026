@@ -1,34 +1,42 @@
-// New customers vs returning ones among the Forgiveness Course's buyers
-// (November 2026) — the split in the Forgiveness box (forgiveness-report.ts).
+// New customers vs returning ones among course buyers (November 2026): the
+// split in the Forgiveness box (forgiveness-report.ts) and in the SD-REPORT
+// emails (stats.ts computeCourseCustomerMix).
 //
 // A buyer is RETURNING when, before this order was paid, they had already
-// bought something from Songdance. Two sources say so:
+// bought from Songdance. Two sources say so:
 //
 //   1. songdance.co — an earlier order under the same address that took money:
-//      a course / pass / album / session row, a paid workshop or masterclass
-//      seat, a paid retreat booking.
+//      a course / pass / album / session row, a course line in the workshop
+//      ledger, a paid retreat booking.
 //   2. Drip — a product tag (prod_…, prodG_…, client, klant) that no order on
 //      the site explains: they bought before the site took payments. Read from
 //      Drip itself and from the contact list, which holds the Drip export of
 //      the people since removed from Drip (their old tags live only there).
 //      The site pushes a tag to both for every order it takes, so the tags of
-//      this buyer's own site orders (the Forgiveness order and anything later)
-//      are taken out first; what is left came from somewhere else.
+//      this buyer's own site orders (this order, anything later, a workshop
+//      order bump) are taken out first; what is left came from somewhere else.
+//
+// A WORKSHOP OR MASTERCLASS SEAT is the front door, not a purchase history
+// (Jacob, 25 Nov 2026): someone who only ever registered for a workshop and
+// now buys the 12-week course is a NEW customer. The one exception is the
+// Forgiveness Course, which is sold to the list rather than out of a workshop:
+// there an earlier paid seat does make the buyer returning (`seatsCount`).
 //
 // Everyone else is NEW. Of those, `onList` marks who was already on the email
 // list a day or more before the order (a Drip subscriber, or a contact row) —
 // a new customer, but not a stranger.
 //
 // Drip is asked once per order and the answer kept in `events`
-// (`forgiveness-buyer-drip-<order id>`), so the pages don't call Drip on every
-// load. An order Drip could not be read for is classified on the rest and
-// counted in `dripUnread`; the next page load tries again.
+// (`course-buyer-drip-<order id>`), so no page or report calls Drip twice for
+// an order. An order Drip could not be read for is classified on the rest and
+// counted in `dripUnread`; the next read tries again.
 
 import { getSubscriber, type DripConfig } from '../registrations/drip';
 import { logEventSafe } from '../registrations/db';
 import { courseDripTags } from '../courses/drip-tags';
 import { albumIdFromProductSlug, isAlbumProductSlug } from '../music/product';
 import type { JourneyLanguageChoice } from '../courses/journeys';
+import { FORGIVENESS_PRODUCT_SLUG } from '../courses/forgiveness';
 
 export type BuyerVerdict = {
   kind: 'new' | 'returning';
@@ -38,13 +46,18 @@ export type BuyerVerdict = {
   onList: boolean;
 };
 
-export type BuyerOrder = { id: number; email: string; paidAt: string };
+export type BuyerOrder = { id: number; email: string; paidAt: string; productSlug: string };
 
-const DRIP_CACHE_KIND = 'forgiveness.buyer.drip';
-const DRIP_CACHE_PREFIX = 'forgiveness-buyer-drip-';
+// Whether an earlier paid workshop / masterclass seat makes this order's buyer
+// a returning customer: only for the Forgiveness Course.
+export const seatsCountFor = (productSlug: string) => productSlug === FORGIVENESS_PRODUCT_SLUG;
+
+const DRIP_CACHE_KIND = 'course.buyer.drip';
+const DRIP_CACHE_PREFIX = 'course-buyer-drip-';
 const dripCacheId = (orderId: number) => `${DRIP_CACHE_PREFIX}${orderId}`;
-// Drip lookups per page load (in parallel, 8s each at the outside).
+// Drip lookups per call (ten at a time, 8s each at the outside).
 const MAX_DRIP_LOOKUPS = 30;
+const DRIP_PARALLEL = 10;
 const ON_LIST_MARGIN_MS = 24 * 3600 * 1000;
 
 // A tag that says "bought something". Drip's product tags are prod_… (German:
@@ -108,16 +121,16 @@ type CourseRow = {
 
 type DripCache = { tags: string[]; since: string | null };
 
-export async function classifyForgivenessBuyers(
+export async function classifyCourseBuyers(
   db: D1Database,
   orders: BuyerOrder[],
-  opts: { drip?: DripConfig | null } = {},
+  opts: { drip?: DripConfig | null; maxDripLookups?: number } = {},
 ): Promise<{ verdicts: Map<number, BuyerVerdict>; dripUnread: number }> {
   const verdicts = new Map<number, BuyerVerdict>();
   if (orders.length === 0) return { verdicts, dripUnread: 0 };
   const emails = [...new Set(orders.map((o) => norm(o.email)).filter(Boolean))];
 
-  const [courseRows, seatRows, retreatRows, tagRows, contactRows, bumpTagRows, albumRows, cacheRows] =
+  const [courseRows, seatRows, ledgerRows, retreatRows, tagRows, contactRows, bumpTagRows, albumRows, cacheRows] =
     await Promise.all([
       safe(() =>
         byEmails<CourseRow>(db, emails, (p) =>
@@ -132,6 +145,14 @@ export async function classifyForgivenessBuyers(
           `SELECT lower(email) AS email, created_at AS at, wants_bump
              FROM workshop_registrations
             WHERE lower(email) IN (${p}) AND payment_status IN ('paid','refunded','chargeback')`),
+      ),
+      // A course bought through the workshop engine (the ledger's course lines).
+      safe(() =>
+        byEmails<{ email: string; at: string }>(db, emails, (p) =>
+          `SELECT lower(r.email) AS email, pu.created_at AS at
+             FROM workshop_purchases pu
+             JOIN workshop_registrations r ON r.id = pu.registration_id
+            WHERE lower(r.email) IN (${p}) AND pu.product_type = 'course' AND pu.amount_minor > 0`),
       ),
       safe(() =>
         byEmails<{ email: string; at: string }>(db, emails, (p) =>
@@ -180,28 +201,30 @@ export async function classifyForgivenessBuyers(
   const missing = orders.filter((o) => !drip.has(o.id));
   if (missing.length > 0 && opts.drip) {
     const cfg = opts.drip;
-    const batch = missing.slice(0, MAX_DRIP_LOOKUPS);
+    const batch = missing.slice(0, opts.maxDripLookups ?? MAX_DRIP_LOOKUPS);
     dripUnread += missing.length - batch.length;
-    await Promise.all(
-      batch.map(async (o) => {
-        try {
-          const sub = await getSubscriber(cfg, norm(o.email));
-          const entry: DripCache = {
-            tags: (sub?.tags ?? []).filter(isCustomerTag).map((t) => t.trim().toLowerCase()),
-            since: sub?.created_at ?? null,
-          };
-          drip.set(o.id, entry);
-          await logEventSafe(db, {
-            registration_id: null,
-            kind: DRIP_CACHE_KIND,
-            external_id: dripCacheId(o.id),
-            payload: entry,
-          });
-        } catch {
-          dripUnread += 1;
-        }
-      }),
-    );
+    for (let i = 0; i < batch.length; i += DRIP_PARALLEL) {
+      await Promise.all(
+        batch.slice(i, i + DRIP_PARALLEL).map(async (o) => {
+          try {
+            const sub = await getSubscriber(cfg, norm(o.email));
+            const entry: DripCache = {
+              tags: (sub?.tags ?? []).filter(isCustomerTag).map((t) => t.trim().toLowerCase()),
+              since: sub?.created_at ?? null,
+            };
+            drip.set(o.id, entry);
+            await logEventSafe(db, {
+              registration_id: null,
+              kind: DRIP_CACHE_KIND,
+              external_id: dripCacheId(o.id),
+              payload: entry,
+            });
+          } catch {
+            dripUnread += 1;
+          }
+        }),
+      );
+    }
   } else {
     dripUnread += missing.length;
   }
@@ -218,6 +241,7 @@ export async function classifyForgivenessBuyers(
   };
   const coursesOf = group(courseRows);
   const seatsOf = group(seatRows);
+  const ledgerOf = group(ledgerRows);
   const retreatsOf = group(retreatRows);
   const tagsOf = group(tagRows);
   const contactSince = new Map(contactRows.map((c) => [c.email, c.created_at]));
@@ -233,7 +257,8 @@ export async function classifyForgivenessBuyers(
     // 1. An earlier order on the site that took money.
     const earlierOnSite =
       courses.some((c) => c.id !== o.id && c.amount_cents > 0 && ms(c.paid_at) < paid) ||
-      seats.some((s) => ms(s.at) < paid) ||
+      (ledgerOf.get(email) ?? []).some((l) => ms(l.at) < paid) ||
+      (seatsCountFor(o.productSlug) && seats.some((s) => ms(s.at) < paid)) ||
       (retreatsOf.get(email) ?? []).some((r) => ms(r.at) < paid);
     if (earlierOnSite) {
       verdicts.set(o.id, { kind: 'returning', via: 'site', onList: true });

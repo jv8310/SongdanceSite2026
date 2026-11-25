@@ -61,7 +61,7 @@ import {
   computeWorkshopPerformance,
   computeRegistrationsByDay,
   computeUpcomingSessions,
-  computeClientMix,
+  computeCourseCustomerMix,
   resolveMoneyOpts,
   type AudienceAcquisition,
   type MoneyOpts,
@@ -71,6 +71,7 @@ import { loadInstallmentForecast } from '../courses/installment-forecast';
 import { localHour } from './time';
 import { sendEmail } from './resend';
 import type { EmailContent } from './emails';
+import type { DripConfig } from '../registrations/drip';
 
 // The business timezone — the same one the stats-page presets resolve "today"
 // in (see periods.ts) so report windows match the dashboard.
@@ -91,7 +92,16 @@ export type ReportEnv = {
   QUADERNO_API_KEY?: string;
   QUADERNO_ACCOUNT?: string;
   QUADERNO_SANDBOX?: string;
+  // Drip, for the new / returning customer split (lib/ads/course-buyers.ts).
+  // Absent → the split rests on the site's orders and the contact list.
+  DRIP_API_TOKEN?: string;
+  DRIP_ACCOUNT_ID?: string;
 };
+
+const dripOf = (env: ReportEnv): DripConfig | null =>
+  env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID
+    ? { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID }
+    : null;
 
 const DEFAULT_RECIPIENT = 'jacob@songdance.co';
 const DEFAULT_BASE_URL = 'https://songdance.co';
@@ -188,14 +198,17 @@ export type ReportData = {
   // Zoom, no time), a payment plan counted in full — the same reading as the
   // profit line on the session cards. `cashEurMinor` = cash in − ad spend.
   profit: { eurMinor: number; cashEurMinor: number };
-  // Who bought in the window (stats.ts computeClientMix): new = their first
-  // payment on the site falls in it, returning = they had paid before it.
-  // Sales are at full value and add up to Sold.
-  clients: {
-    newCount: number;
-    returningCount: number;
+  // The window's course sales by who bought them (stats.ts
+  // computeCourseCustomerMix): from someone who had bought a course before, or
+  // from a new customer. A workshop or masterclass seat is neither a sale here
+  // nor a purchase history (the Forgiveness Course apart). At full value with
+  // the order bumps, so the two add up to course sales + course bumps.
+  customers: {
+    newSales: number;
+    returningSales: number;
     newSalesEurMinor: number;
     returningSalesEurMinor: number;
+    dripUnread: number;
   };
   // Per day across the window (the weekly digest's table).
   daily: Array<{
@@ -213,6 +226,11 @@ export type ReportData = {
     label: string; // "vs last Thu" / "vs prior week" — printed beside each change
     headline: ReportHeadline;
   } | null;
+  // The average period of the four weeks before this one: the average day of
+  // the 28 days before a daily, the average week of the 4 before a weekly.
+  // Counts and euros are the 28 days' totals ÷ 28 (or ÷ 4); the ratios (ROAS,
+  // the seat prices) are those 28 days' own.
+  average: { from: string; to: string; label: string; headline: ReportHeadline } | null;
   // The next live sessions and where their seats stand now.
   upcoming: Array<{ title: string; when: string; seats: number; newSeats: number }>;
   // Open installment plans — what is still to come in (weekly only).
@@ -236,13 +254,28 @@ export type ReportHeadline = {
   workshopSeatEurMinor: number | null;
   masterclassSeatEurMinor: number | null;
   profitEurMinor: number;
-  newClients: number;
-  returningClients: number;
+  newCustomerSales: number;
+  returningCustomerSales: number;
 };
+
+// The headline figures that are a ratio: an average period keeps the long
+// window's own value for these, everything else is divided.
+const RATIO_KEYS: ReadonlyArray<keyof ReportHeadline> = [
+  'roas', 'workshopSeatEurMinor', 'masterclassSeatEurMinor',
+];
+
+export function averageHeadline(total: ReportHeadline, periods: number): ReportHeadline {
+  const out = { ...total };
+  for (const k of Object.keys(out) as Array<keyof ReportHeadline>) {
+    const v = out[k];
+    if (v != null && !RATIO_KEYS.includes(k)) (out[k] as number) = v / periods;
+  }
+  return out;
+}
 
 // One window's figures; the report adds the comparison, the upcoming sessions
 // and the pipeline around it.
-type WindowData = Omit<ReportData, 'previous' | 'upcoming' | 'pipeline'>;
+type WindowData = Omit<ReportData, 'previous' | 'average' | 'upcoming' | 'pipeline'>;
 
 export function headlineOf(data: WindowData): ReportHeadline {
   return {
@@ -255,8 +288,8 @@ export function headlineOf(data: WindowData): ReportHeadline {
     workshopSeatEurMinor: data.ads.workshopSeatEurMinor,
     masterclassSeatEurMinor: data.ads.masterclassSeatEurMinor,
     profitEurMinor: data.profit.eurMinor,
-    newClients: data.clients.newCount,
-    returningClients: data.clients.returningCount,
+    newCustomerSales: data.customers.newSales,
+    returningCustomerSales: data.customers.returningSales,
   };
 }
 
@@ -266,6 +299,8 @@ export type ReportKind = 'daily' | 'weekly';
 // compared with the same weekday a week earlier, not the day before: sessions
 // and campaigns run on a weekly rhythm, so Monday against Sunday mostly
 // measures the calendar.
+const AVERAGE_DAYS = 28;
+
 export function reportPeriods(
   kind: ReportKind,
   target: string,
@@ -312,12 +347,21 @@ export async function gatherReport(
   kind: ReportKind,
   target: string,
   money?: MoneyOpts,
+  drip?: DripConfig | null,
 ): Promise<ReportData> {
   const { from, to, previous } = reportPeriods(kind, target);
-  const [data, prev, upcoming, forecast] = await Promise.all([
-    gatherWindow(db, from, to, money),
+  // The four weeks before this period, for the average.
+  const avg = {
+    from: shiftDays(from, -AVERAGE_DAYS),
+    to: shiftDays(from, -1),
+    periods: kind === 'weekly' ? AVERAGE_DAYS / 7 : AVERAGE_DAYS,
+    label: kind === 'weekly' ? 'vs 4-week avg' : 'vs 28-day avg',
+  };
+  const [data, prev, avgWindow, upcoming, forecast] = await Promise.all([
+    gatherWindow(db, from, to, money, { drip }),
     // Only its headline is read, so the economics pass is skipped.
-    gatherWindow(db, previous.from, previous.to, money, { economics: false }),
+    gatherWindow(db, previous.from, previous.to, money, { economics: false, drip }),
+    gatherWindow(db, avg.from, avg.to, money, { economics: false, drip }).catch(() => null),
     computeUpcomingSessions(db, { limit: 5, from, to }),
     // The pipeline is a weekly figure; it is the same forecast the dashboard's
     // "Future revenue" box and /admin/courses/future-revenue project.
@@ -328,6 +372,9 @@ export async function gatherReport(
   return {
     ...data,
     previous: { ...previous, headline: headlineOf(prev) },
+    average: avgWindow
+      ? { from: avg.from, to: avg.to, label: avg.label, headline: averageHeadline(headlineOf(avgWindow), avg.periods) }
+      : null,
     upcoming: upcoming.map((u) => ({
       title: u.title,
       when: sessionWhen(u.startsAtUtc),
@@ -354,7 +401,7 @@ async function gatherWindow(
   from: string,
   to: string,
   money?: MoneyOpts,
-  opts: { economics?: boolean } = {},
+  opts: { economics?: boolean; drip?: DripConfig | null } = {},
 ): Promise<WindowData> {
   const [stats, courses, cashIn, perf, ranPerf, regsByDay, clientMix] = await Promise.all([
     computeStats(db, { from, to, money }),
@@ -365,7 +412,7 @@ async function gatherWindow(
       ? Promise.resolve(null)
       : computeWorkshopPerformance(db, { from, to, money, excludeFutureEvents: true }),
     computeRegistrationsByDay(db, { from, to }),
-    computeClientMix(db, { from, to, money }),
+    computeCourseCustomerMix(db, { from, to, money, drip: opts.drip, maxDripLookups: 80 }),
   ]);
   const economics = ranPerf ?? perf;
   const setAside = ranPerf?.future;
@@ -488,12 +535,7 @@ async function gatherWindow(
           : null,
     },
     profit: { eurMinor: soldTotal - spend, cashEurMinor: cashTotal - spend },
-    clients: {
-      newCount: clientMix.newClients,
-      returningCount: clientMix.returningClients,
-      newSalesEurMinor: clientMix.newSalesEurMinor,
-      returningSalesEurMinor: clientMix.returningSalesEurMinor,
-    },
+    customers: clientMix,
     daily,
   };
 }
@@ -583,6 +625,11 @@ function comparedWith(p: { from: string; to: string }): string {
     : `the week before: ${dayLabel(p.from)} – ${dayLabel(p.to)}`;
 }
 
+// The average a report is compared with, spelled out.
+function averageOf(a: { from: string; to: string }): string {
+  return `the average of the four weeks before (${dayLabel(a.from)} – ${dayLabel(a.to)})`;
+}
+
 const C = {
   bg: '#f3f4f6',
   card: '#ffffff',
@@ -618,9 +665,12 @@ function change(
 }
 
 // Every headline card's change, in one place for the HTML and the text part.
-function headlineChanges(data: ReportData): Record<keyof ReportHeadline, Change | null> {
+function headlineChanges(
+  data: ReportData,
+  against: 'previous' | 'average' = 'previous',
+): Record<keyof ReportHeadline, Change | null> {
   const cur = headlineOf(data);
-  const p = data.previous;
+  const p = data[against];
   const c = (k: keyof ReportHeadline, goodWhenUp = true) =>
     p ? change(cur[k], p.headline[k], p.label, goodWhenUp) : null;
   return {
@@ -633,34 +683,42 @@ function headlineChanges(data: ReportData): Record<keyof ReportHeadline, Change 
     workshopSeatEurMinor: c('workshopSeatEurMinor', false),
     masterclassSeatEurMinor: c('masterclassSeatEurMinor', false),
     profitEurMinor: c('profitEurMinor'),
-    // Neither more new nor more returning clients is the bad direction.
-    newClients: c('newClients'),
-    returningClients: c('returningClients'),
+    // Neither more new nor more returning customers is the bad direction.
+    newCustomerSales: c('newCustomerSales'),
+    returningCustomerSales: c('returningCustomerSales'),
   };
 }
 
 const share = (n: number, total: number) => (total > 0 ? `${Math.round((n / total) * 100)}%` : '—');
 
-// New and returning clients, as table rows — shared by the HTML and the text.
-function clientRows(data: ReportData): string[][] {
-  const c = data.clients;
-  const people = c.newCount + c.returningCount;
+// Course sales from new and from returning customers, as table rows — shared
+// by the HTML and the text.
+function customerRows(data: ReportData): string[][] {
+  const c = data.customers;
+  const count = c.newSales + c.returningSales;
   const sales = c.newSalesEurMinor + c.returningSalesEurMinor;
   return [
-    ['New', String(c.newCount), share(c.newCount, people), eur(c.newSalesEurMinor), share(c.newSalesEurMinor, sales)],
+    ['New customers', String(c.newSales), share(c.newSales, count), eur(c.newSalesEurMinor), share(c.newSalesEurMinor, sales)],
     [
-      'Returning',
-      String(c.returningCount),
-      share(c.returningCount, people),
+      'Returning customers',
+      String(c.returningSales),
+      share(c.returningSales, count),
       eur(c.returningSalesEurMinor),
       share(c.returningSalesEurMinor, sales),
     ],
-    ['Total', String(people), '', eur(sales), ''],
+    ['Total', String(count), '', eur(sales), ''],
   ];
 }
 
-const CLIENTS_NOTE =
-  'A client is anyone who paid for something in this window (a workshop or masterclass seat, a course); free seats are left out. New = their first payment on the site. Returning = they had paid for a workshop, a course or a retreat before this window. Sales are at full value, so the two add up to Sold. Purchases from before the site took payments are not on record, so those buyers count as new.';
+const CUSTOMERS_NOTE =
+  'Course sales only (courses, passes, albums, private sessions), at full value with their order bumps; free places are left out. Returning = before this order the buyer had bought a course or a retreat from Songdance, on the site or, by their product tags in Drip, before the site took payments. A workshop or masterclass seat does not make someone a returning customer, so a workshop registrant who buys a course is new; the Forgiveness Course is the exception, where an earlier paid seat counts.';
+
+function customersNote(data: ReportData): string {
+  const n = data.customers.dripUnread;
+  return n > 0
+    ? `${CUSTOMERS_NOTE} Drip did not answer for ${n} order${n === 1 ? '' : 's'}, read on the site's own records.`
+    : CUSTOMERS_NOTE;
+}
 
 function sectionLabel(text: string): string {
   return `<p style="margin:22px 0 8px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${C.faint};">${escapeHtml(text)}</p>`;
@@ -668,7 +726,7 @@ function sectionLabel(text: string): string {
 
 // A row of stat cards (label + big number + optional small line under it).
 function statCards(
-  cards: Array<{ label: string; value: string; sub?: string; change?: Change | null }>,
+  cards: Array<{ label: string; value: string; sub?: string; change?: Change | null; change2?: Change | null }>,
 ): string {
   const cells = cards
     .map(
@@ -680,6 +738,7 @@ function statCards(
               <p style="margin:0;font-size:22px;font-weight:600;color:${C.ink};white-space:nowrap;">${escapeHtml(c.value)}</p>
               ${c.sub ? `<p style="margin:4px 0 0;font-size:11px;color:${C.faint};">${escapeHtml(c.sub)}</p>` : ''}
               ${c.change ? `<p style="margin:5px 0 0;font-size:11px;font-weight:600;color:${TONE[c.change.tone]};white-space:nowrap;">${escapeHtml(c.change.text)}</p>` : ''}
+              ${c.change2 ? `<p style="margin:2px 0 0;font-size:11px;font-weight:600;color:${TONE[c.change2.tone]};white-space:nowrap;">${escapeHtml(c.change2.text)}</p>` : ''}
             </td></tr>
           </table>
         </td>`,
@@ -806,16 +865,17 @@ function renderReport(opts: {
   const ads = data.ads;
 
   const ch = headlineChanges(data);
+  const av = headlineChanges(data, 'average');
   const snapshot = statCards([
-    { label: 'Registrations', value: String(data.registrations.total), change: ch.registrations },
+    { label: 'Registrations', value: String(data.registrations.total), change: ch.registrations, change2: av.registrations },
     {
       label: 'Course sales',
       value: String(data.courseSales.total),
       sub: data.courseSales.plans ? `${data.courseSales.plans} on a plan` : undefined,
-      change: ch.courseSales,
+      change: ch.courseSales, change2: av.courseSales,
     },
-    { label: 'Sold', value: eur0(data.sold.totalEurMinor), sub: 'courses in full', change: ch.soldEurMinor },
-    { label: 'Cash in', value: eur0(data.cash.totalEurMinor), sub: 'actually charged', change: ch.cashInEurMinor },
+    { label: 'Sold', value: eur0(data.sold.totalEurMinor), sub: 'courses in full', change: ch.soldEurMinor, change2: av.soldEurMinor },
+    { label: 'Cash in', value: eur0(data.cash.totalEurMinor), sub: 'actually charged', change: ch.cashInEurMinor, change2: av.cashInEurMinor },
   ]);
 
   // Ad-efficiency headline — spend, blended ROAS on full value, and the price
@@ -826,24 +886,24 @@ function renderReport(opts: {
       label: 'Ad spend',
       value: eur0(ads.spendEurMinor),
       sub: ads.spendEurMinor > 0 ? `${eur0(ads.prospectingEurMinor)} prospecting` : undefined,
-      change: ch.adSpendEurMinor,
+      change: ch.adSpendEurMinor, change2: av.adSpendEurMinor,
     },
-    { label: 'Blended ROAS', value: roasStr(ads.roas), sub: 'sold ÷ ad spend', change: ch.roas },
+    { label: 'Blended ROAS', value: roasStr(ads.roas), sub: 'sold ÷ ad spend', change: ch.roas, change2: av.roas },
     {
       label: 'Workshop seat',
       value: seat(ads.workshopSeatEurMinor),
       sub: 'cost / registration',
-      change: ch.workshopSeatEurMinor,
+      change: ch.workshopSeatEurMinor, change2: av.workshopSeatEurMinor,
     },
     {
       label: 'Masterclass seat',
       value: seat(ads.masterclassSeatEurMinor),
       sub: 'cost / registration',
-      change: ch.masterclassSeatEurMinor,
+      change: ch.masterclassSeatEurMinor, change2: av.masterclassSeatEurMinor,
     },
   ]);
-  const cl = data.clients;
-  const people = cl.newCount + cl.returningCount;
+  const cl = data.customers;
+  const courseOrders = cl.newSales + cl.returningSales;
   const clientSales = cl.newSalesEurMinor + cl.returningSalesEurMinor;
   const profitCards = statCards([
     {
@@ -853,30 +913,32 @@ function renderReport(opts: {
         data.profit.cashEurMinor !== data.profit.eurMinor
           ? `sold − ad spend · ${eur0(data.profit.cashEurMinor)} on cash in`
           : 'sold − ad spend',
-      change: ch.profitEurMinor,
+      change: ch.profitEurMinor, change2: av.profitEurMinor,
     },
     {
-      label: 'New clients',
-      value: `${cl.newCount} · ${share(cl.newCount, people)}`,
-      sub: `${eur0(cl.newSalesEurMinor)} sold · ${share(cl.newSalesEurMinor, clientSales)} of sales`,
-      change: ch.newClients,
+      label: 'Courses · new customers',
+      value: `${cl.newSales} · ${share(cl.newSales, courseOrders)}`,
+      sub: `${eur0(cl.newSalesEurMinor)} · ${share(cl.newSalesEurMinor, clientSales)} of course sales`,
+      change: ch.newCustomerSales,
+      change2: av.newCustomerSales,
     },
     {
-      label: 'Returning clients',
-      value: `${cl.returningCount} · ${share(cl.returningCount, people)}`,
-      sub: `${eur0(cl.returningSalesEurMinor)} sold · ${share(cl.returningSalesEurMinor, clientSales)} of sales`,
-      change: ch.returningClients,
+      label: 'Courses · returning',
+      value: `${cl.returningSales} · ${share(cl.returningSales, courseOrders)}`,
+      sub: `${eur0(cl.returningSalesEurMinor)} · ${share(cl.returningSalesEurMinor, clientSales)} of course sales`,
+      change: ch.returningCustomerSales,
+      change2: av.returningCustomerSales,
     },
   ]);
   const clientSection =
-    sectionLabel('Clients — new and returning') +
-    dataTable(['', 'Clients', 'Share', 'Sales', 'Share of sales'], clientRows(data), { boldLast: true }) +
-    note(CLIENTS_NOTE);
+    sectionLabel('Course sales — new and returning customers') +
+    dataTable(['', 'Course sales', 'Share', 'Value', 'Share of value'], customerRows(data), { boldLast: true }) +
+    note(customersNote(data));
 
   const compareNote = data.previous
     ? `<p style="margin:6px 0 0;font-size:11px;color:${C.faint};">Changes compare with ${escapeHtml(
         comparedWith(data.previous),
-      )}.</p>`
+      )}${data.average ? escapeHtml(`, and with ${averageOf(data.average)}`) : ''}.</p>`
     : '';
 
   const upcomingSection =
@@ -1016,26 +1078,36 @@ function renderReport(opts: {
 function renderReportText(kindLabel: string, rangeLabel: string, data: ReportData): string {
   const ads = data.ads;
   const ch = headlineChanges(data);
+  const av = headlineChanges(data, 'average');
   const lines: string[] = [kindLabel, rangeLabel, ''];
   const seat = (v: number | null) => (v != null ? eur(v) : '—');
-  const w = (value: string, c: Change | null) => (c ? `${value} (${c.text})` : value);
+  const w = (value: string, c: Change | null, c2: Change | null) => {
+    const notes = [c?.text, c2?.text].filter(Boolean).join(', ');
+    return notes ? `${value} (${notes})` : value;
+  };
   lines.push(
-    `Registrations: ${w(String(data.registrations.total), ch.registrations)}`,
-    `Course sales: ${w(String(data.courseSales.total), ch.courseSales)}`,
-    `Sold: ${w(eur(data.sold.totalEurMinor), ch.soldEurMinor)}`,
-    `Cash in: ${w(eur(data.cash.totalEurMinor), ch.cashInEurMinor)}`,
-    `Ad spend: ${w(eur(ads.spendEurMinor), ch.adSpendEurMinor)}`,
-    `Blended ROAS: ${w(roasStr(ads.roas), ch.roas)}`,
-    `Workshop seat: ${w(seat(ads.workshopSeatEurMinor), ch.workshopSeatEurMinor)}`,
-    `Masterclass seat: ${w(seat(ads.masterclassSeatEurMinor), ch.masterclassSeatEurMinor)}`,
-    `Profit (sold − ad spend): ${w(eur(data.profit.eurMinor), ch.profitEurMinor)} · ${eur(
+    `Registrations: ${w(String(data.registrations.total), ch.registrations, av.registrations)}`,
+    `Course sales: ${w(String(data.courseSales.total), ch.courseSales, av.courseSales)}`,
+    `Sold: ${w(eur(data.sold.totalEurMinor), ch.soldEurMinor, av.soldEurMinor)}`,
+    `Cash in: ${w(eur(data.cash.totalEurMinor), ch.cashInEurMinor, av.cashInEurMinor)}`,
+    `Ad spend: ${w(eur(ads.spendEurMinor), ch.adSpendEurMinor, av.adSpendEurMinor)}`,
+    `Blended ROAS: ${w(roasStr(ads.roas), ch.roas, av.roas)}`,
+    `Workshop seat: ${w(seat(ads.workshopSeatEurMinor), ch.workshopSeatEurMinor, av.workshopSeatEurMinor)}`,
+    `Masterclass seat: ${w(seat(ads.masterclassSeatEurMinor), ch.masterclassSeatEurMinor, av.masterclassSeatEurMinor)}`,
+    `Profit (sold − ad spend): ${w(eur(data.profit.eurMinor), ch.profitEurMinor, av.profitEurMinor)} · ${eur(
       data.profit.cashEurMinor,
     )} on cash in`,
   );
-  if (data.previous) lines.push(`(Changes compare with ${comparedWith(data.previous)}.)`);
-  lines.push('', 'CLIENTS — NEW AND RETURNING (clients · share · sales · share of sales)');
-  for (const [name, ...rest] of clientRows(data)) lines.push(`  ${name}: ${rest.filter(Boolean).join(' · ')}`);
-  lines.push(`  ${CLIENTS_NOTE}`);
+  if (data.previous) {
+    lines.push(
+      `(Changes compare with ${comparedWith(data.previous)}${
+        data.average ? `, and with ${averageOf(data.average)}` : ''
+      }.)`,
+    );
+  }
+  lines.push('', 'COURSE SALES — NEW AND RETURNING CUSTOMERS (course sales · share · value · share of value)');
+  for (const [name, ...rest] of customerRows(data)) lines.push(`  ${name}: ${rest.filter(Boolean).join(' · ')}`);
+  lines.push(`  ${customersNote(data)}`);
   lines.push('', 'MONEY (sold · cash in)');
   for (const r of moneyRows(data)) lines.push(`  ${r.label}: ${cell(r.sold)} · ${cell(r.cash)}`);
   const toBill = stillToBillNote(data);
@@ -1272,7 +1344,7 @@ export async function runReports(env: ReportEnv, now = Date.now()): Promise<RunR
   result.daily = await sendOne(
     env,
     `report-daily-${yesterday}`,
-    () => gatherReport(env.DB, 'daily', yesterday, money),
+    () => gatherReport(env.DB, 'daily', yesterday, money, dripOf(env)),
     (data) => buildDailyReportEmail(data, baseUrl),
   );
 
@@ -1280,7 +1352,7 @@ export async function runReports(env: ReportEnv, now = Date.now()): Promise<RunR
     result.weekly = await sendOne(
       env,
       `report-weekly-${yesterday}`,
-      () => gatherReport(env.DB, 'weekly', yesterday, money),
+      () => gatherReport(env.DB, 'weekly', yesterday, money, dripOf(env)),
       (data) => buildWeeklyReportEmail(data, baseUrl),
     );
   }
@@ -1309,7 +1381,7 @@ export async function sendReportNow(
   const target = (opts.date && opts.date.trim()) || defaultDate;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) throw new Error(`Bad date: ${target}`);
 
-  const data = await gatherReport(env.DB, opts.kind, target, await resolveMoneyOpts(env.DB, env));
+  const data = await gatherReport(env.DB, opts.kind, target, await resolveMoneyOpts(env.DB, env), dripOf(env));
   const { from, to } = data;
   const content =
     opts.kind === 'weekly'
@@ -1413,7 +1485,7 @@ export function sampleDailyReportData(): ReportData {
       },
     },
     profit: { eurMinor: 123920, cashEurMinor: 101920 },
-    clients: { newCount: 6, returningCount: 2, newSalesEurMinor: 21820, returningSalesEurMinor: 116300 },
+    customers: { newSales: 1, returningSales: 1, newSalesEurMinor: 43530, returningSalesEurMinor: 76000, dripUnread: 0 },
     daily: [
       {
         date: '2026-06-29',
@@ -1437,8 +1509,26 @@ export function sampleDailyReportData(): ReportData {
         workshopSeatEurMinor: 1350,
         masterclassSeatEurMinor: 2800,
         profitEurMinor: 48700,
-        newClients: 4,
-        returningClients: 1,
+        newCustomerSales: 1,
+        returningCustomerSales: 0,
+      },
+    },
+    average: {
+      from: '2026-06-01',
+      to: '2026-06-28',
+      label: 'vs 28-day avg',
+      headline: {
+        registrations: 5.2,
+        courseSales: 0.9,
+        soldEurMinor: 51200,
+        cashInEurMinor: 44800,
+        adSpendEurMinor: 7300,
+        roas: 7.01,
+        workshopSeatEurMinor: 960,
+        masterclassSeatEurMinor: 2350,
+        profitEurMinor: 43900,
+        newCustomerSales: 0.6,
+        returningCustomerSales: 0.3,
       },
     },
     upcoming: [
@@ -1551,7 +1641,7 @@ export function sampleWeeklyReportData(): ReportData {
       },
     },
     profit: { eurMinor: 350410, cashEurMinor: 239400 },
-    clients: { newCount: 31, returningCount: 9, newSalesEurMinor: 148260, returningSalesEurMinor: 257550 },
+    customers: { newSales: 4, returningSales: 3, newSalesEurMinor: 128260, returningSalesEurMinor: 201750, dripUnread: 0 },
     daily,
     previous: {
       from: '2026-06-15',
@@ -1567,8 +1657,26 @@ export function sampleWeeklyReportData(): ReportData {
         workshopSeatEurMinor: 910,
         masterclassSeatEurMinor: 2210,
         profitEurMinor: 303100,
-        newClients: 27,
-        returningClients: 8,
+        newCustomerSales: 4,
+        returningCustomerSales: 2,
+      },
+    },
+    average: {
+      from: '2026-05-25',
+      to: '2026-06-21',
+      label: 'vs 4-week avg',
+      headline: {
+        registrations: 34.5,
+        courseSales: 6.25,
+        soldEurMinor: 341800,
+        cashInEurMinor: 296400,
+        adSpendEurMinor: 50900,
+        roas: 6.72,
+        workshopSeatEurMinor: 940,
+        masterclassSeatEurMinor: 2300,
+        profitEurMinor: 290900,
+        newCustomerSales: 4,
+        returningCustomerSales: 2.25,
       },
     },
     upcoming: [
