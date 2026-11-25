@@ -212,6 +212,10 @@ const fmtSched = (s: string | null): string | null => {
                 <input name="audience_field_value" placeholder="e.g. No" />
               </label>
             </div>
+            <label class="bc-field">
+              <span>Only people who opened or clicked an email in the last … days <em>(blank = no such filter)</em></span>
+              <input name="audience_engaged_days" type="number" min="1" max="730" step="1" placeholder="e.g. 30" />
+            </label>
             {tags.length > 0 && (
               <div class="bc-tagcloud">
                 <span class="bc-tagcloud-label">Your {tags.length.toLocaleString()} tags — click to include, or type any tag name into the fields above.</span>
@@ -332,6 +336,7 @@ const fmtSched = (s: string | null): string | null => {
         audience_exclude_tags: fd.get('audience_exclude_tags'),
         audience_field: fd.get('audience_field'),
         audience_field_value: fd.get('audience_field_value'),
+        audience_engaged_days: fd.get('audience_engaged_days'),
       };
       const any = Object.values(payload).some((v) => (v || '').toString().trim());
       try {

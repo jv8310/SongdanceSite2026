@@ -37,6 +37,9 @@ export type Broadcast = {
   audience_exclude_tags: string | null;
   audience_field: string | null;
   audience_field_value: string | null;
+  // Only contacts who opened or clicked an email from the site in the last N
+  // days (migration 0103). null / absent = no such filter.
+  audience_engaged_days?: number | null;
   status: 'draft' | 'sending' | 'paused' | 'done';
   paused_reason: string | null;
   // The circuit breaker evaluates complaint/bounce rates only over sends made
@@ -70,7 +73,19 @@ export type AudienceCriteria = {
   excludeTags?: string | null; // comma-separated; contact must carry NONE
   field?: string | null; // custom-field key
   fieldValue?: string | null; // exact match
+  // Opened or clicked any tracked email (email_sends) in the last N days.
+  engagedDays?: number | null;
 };
+
+// The "engaged in the last N days" setting as a whole number of days from 1 to
+// ENGAGED_DAYS_MAX, or null for "no filter" (blank, 0, nonsense).
+export const ENGAGED_DAYS_MAX = 730;
+export function normalizeEngagedDays(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(n, ENGAGED_DAYS_MAX);
+}
 
 // Each broadcast tracks its sends under its own email_type, so the stats table
 // (email_sends) and the webhook fold open/click/bounce/complaint onto the right
@@ -400,6 +415,21 @@ function audienceWhere(criteria: AudienceCriteria): { sql: string; binds: string
     binds.push(field, value);
   }
 
+  // Engagement: an open or a click on ANY email the site sent them (broadcasts,
+  // lifecycle, transactional — all of email_sends), its latest one inside the
+  // window. Two selects so each rides its own index (migration 0103). The
+  // stamps are the Resend webhook's ISO instants, so an ISO cutoff compares.
+  const days = normalizeEngagedDays(criteria.engagedDays);
+  if (days) {
+    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+    clauses.push(
+      `c.email IN (SELECT lower(to_email) FROM email_sends WHERE last_opened_at >= ?
+                   UNION
+                   SELECT lower(to_email) FROM email_sends WHERE last_clicked_at >= ?)`,
+    );
+    binds.push(cutoff, cutoff);
+  }
+
   return { sql: clauses.join(' AND '), binds };
 }
 
@@ -410,6 +440,7 @@ function criteriaOf(b: Broadcast | AudienceCriteria): AudienceCriteria {
       excludeTags: b.audience_exclude_tags,
       field: b.audience_field,
       fieldValue: b.audience_field_value,
+      engagedDays: b.audience_engaged_days ?? null,
     };
   }
   return b;
@@ -465,7 +496,23 @@ export type BroadcastInput = {
   audience_exclude_tags?: string | null;
   audience_field?: string | null;
   audience_field_value?: string | null;
+  audience_engaged_days?: number | null;
 };
+
+// The engagement filter is written on its own, and may fail quietly: a preview
+// deploy runs against the live database before migration 0103 has added the
+// column, and saving a broadcast must keep working there.
+async function writeEngagedDays(db: D1Database, id: number, days: unknown): Promise<void> {
+  if (!id) return;
+  try {
+    await db
+      .prepare(`UPDATE broadcasts SET audience_engaged_days = ? WHERE id = ? AND status != 'done'`)
+      .bind(normalizeEngagedDays(days), id)
+      .run();
+  } catch {
+    /* column not there yet */
+  }
+}
 
 // Clamp the send window to a sane 0–24 and ensure start < end; fall back to the
 // 08:00–21:00 default if the values are nonsense.
@@ -510,7 +557,9 @@ export async function createBroadcast(db: D1Database, b: BroadcastInput): Promis
       b.audience_field_value ?? null,
     )
     .run();
-  return Number(r.meta?.last_row_id ?? 0);
+  const id = Number(r.meta?.last_row_id ?? 0);
+  await writeEngagedDays(db, id, b.audience_engaged_days);
+  return id;
 }
 
 // Edits are allowed until a broadcast is done. Editing a sending/paused
@@ -550,6 +599,7 @@ export async function updateBroadcast(db: D1Database, id: number, b: BroadcastIn
       id,
     )
     .run();
+  await writeEngagedDays(db, id, b.audience_engaged_days);
 }
 
 // Clone an existing broadcast's content + audience into a brand-new draft, so a
@@ -578,6 +628,7 @@ export async function duplicateBroadcast(db: D1Database, sourceId: number): Prom
     audience_exclude_tags: src.audience_exclude_tags,
     audience_field: src.audience_field,
     audience_field_value: src.audience_field_value,
+    audience_engaged_days: src.audience_engaged_days ?? null,
   });
 }
 

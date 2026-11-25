@@ -7,6 +7,7 @@ import { readCookie, verifySession } from '../../../../lib/registrations/auth';
 import {
   createBroadcast,
   getBroadcast,
+  normalizeEngagedDays,
   updateBroadcast,
   type BroadcastInput,
 } from '../../../../lib/broadcasts/db';
@@ -54,6 +55,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     audience_exclude_tags: str(p.audience_exclude_tags),
     audience_field: str(p.audience_field),
     audience_field_value: str(p.audience_field_value),
+    audience_engaged_days: normalizeEngagedDays(p.audience_engaged_days),
   };
 
   const id = num(p.id);
