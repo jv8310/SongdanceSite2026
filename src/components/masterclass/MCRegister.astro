@@ -124,6 +124,7 @@ const bumpInApp = await albumPlaysInApp(Astro.locals.runtime.env.DB, EMPOWERING_
     <p class="we-register-note">Live · Online · 100 min · Replay included</p>
     <p class="we-discount-note" id="mc-discount-note" hidden></p>
 
+    <LaunchOfferCallout scope="your seat" note="Applied automatically at checkout — no code needed." />
     <LaunchOfferCallout
       scope="your seat"
       active={masterclassPromoActive()}

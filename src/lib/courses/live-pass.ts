@@ -103,6 +103,7 @@
 // only to someone who holds the certification course, and only when its first
 // month reaches past the window they have (monthlyExtensionRefusal).
 
+import { LIVE_PASS_MONTHLY_PROMO_MONTHS, livePassPromoPercent } from '../promo';
 import { formatMoney, type SupportedCurrency } from '../workshops/currency';
 import { businessDayOf, businessWindowUtc } from '../workshops/periods';
 import { albumPriceCents } from '../music/product';
@@ -247,15 +248,90 @@ export function livePassMonthlyRenewalCents(currency: SupportedCurrency, withExt
   return withExtension ? month + monthlyExtensionOn(month, currency) : month;
 }
 
-// The pass, discounted for its length and floored to a whole unit.
-export function livePassPriceCents(months: LivePassMonths, currency: SupportedCurrency): number {
+// The monthly during the site sale (Black Friday 2026): the sale's percent off
+// its first two months — the first month's own price, then the renewal price —
+// and the usual price from the third. Null outside a sale. Exact to the minor
+// unit, not floored: Stripe takes the percent itself (a coupon), PayPal bills
+// these two figures as cycles of their own, and the page prints them.
+export type LivePassMonthlyPromo = {
+  percent: number;
+  months: number;
+  first_cents: number;
+  second_cents: number;
+};
+
+export function livePassMonthlyPromo(
+  currency: SupportedCurrency,
+  nowMs: number = Date.now(),
+  // With the certification-window extension: the percent comes off the prices
+  // that carry it, as the coupon takes it off the whole invoice.
+  withExtension = false,
+): LivePassMonthlyPromo | null {
+  const percent = livePassPromoPercent(nowMs);
+  if (!percent) return null;
+  const off = (cents: number) => Math.round((cents * (100 - percent)) / 100);
+  return {
+    percent,
+    months: LIVE_PASS_MONTHLY_PROMO_MONTHS,
+    first_cents: off(livePassMonthlyFirstCents(currency, withExtension)),
+    second_cents: off(livePassMonthlyRenewalCents(currency, withExtension)),
+  };
+}
+
+// What a monthly agreed during a sale really charges for its first two months:
+// the order row is written like any monthly's (the reports read it so), and the
+// sale is on the checkout's own event, by the order's id. Null for a monthly
+// outside a sale. For the emails and the manage page, which name the prices.
+export async function monthlySaleForOrder(
+  db: D1Database,
+  reg: { id: number; amount_cents: number; bumps: string | null },
+): Promise<{ percent: number; first_cents: number; second_cents: number } | null> {
+  try {
+    const row = await db
+      .prepare(`SELECT payload FROM events WHERE external_id IN (?1, ?2) LIMIT 1`)
+      .bind(`local-course-${reg.id}-monthly`, `local-course-pp-${reg.id}-monthly`)
+      .first<{ payload: string | null }>();
+    const percent = Number((row?.payload ? JSON.parse(row.payload) : null)?.promo_percent ?? 0);
+    if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return null;
+    const off = (cents: number) => Math.round((cents * (100 - percent)) / 100);
+    return {
+      percent,
+      first_cents: off(reg.amount_cents + monthlyFirstMonthExtraCents(reg.bumps)),
+      second_cents: off(reg.amount_cents),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// The pass at its usual price: discounted for its length and floored to a whole
+// unit.
+export function livePassRegularCents(months: LivePassMonths, currency: SupportedCurrency): number {
   const full = livePassMonthlyCents(currency) * months;
   return floorTo((full * (100 - LIVE_PASS_DISCOUNT_PERCENT[months])) / 100, stepCents(currency));
 }
 
+// The pass as it is charged at this moment: its usual price, less the site
+// sale's percent while one runs (Black Friday 2026: 20%, promo.ts), floored
+// again so the percent is never under-delivered. The page and the checkout both
+// read this, so the figure shown is the figure charged.
+export function livePassPriceCents(
+  months: LivePassMonths,
+  currency: SupportedCurrency,
+  nowMs: number = Date.now(),
+): number {
+  const regular = livePassRegularCents(months, currency);
+  const promo = livePassPromoPercent(nowMs);
+  return promo ? floorTo((regular * (100 - promo)) / 100, stepCents(currency)) : regular;
+}
+
 // The certification-window add-on: 20% of the pass it rides on, floored.
-export function certExtensionPriceCents(months: LivePassMonths, currency: SupportedCurrency): number {
-  return floorTo((livePassPriceCents(months, currency) * CERT_EXTENSION_PERCENT) / 100, stepCents(currency));
+export function certExtensionPriceCents(
+  months: LivePassMonths,
+  currency: SupportedCurrency,
+  nowMs: number = Date.now(),
+): number {
+  return floorTo((livePassPriceCents(months, currency, nowMs) * CERT_EXTENSION_PERCENT) / 100, stepCents(currency));
 }
 
 export type LivePassOffer = {
@@ -265,16 +341,29 @@ export type LivePassOffer = {
   full_cents: number; // months × the monthly price, before the discount
   discount_percent: number;
   extension_cents: number;
+  // The site sale, while one runs: its percent (0 outside it) and the price to
+  // strike through beside the charged one — the pass's usual price during the
+  // sale, months × the monthly price otherwise.
+  promo_percent: number;
+  was_cents: number;
 };
 
-export function livePassOffer(months: LivePassMonths, currency: SupportedCurrency): LivePassOffer {
+export function livePassOffer(
+  months: LivePassMonths,
+  currency: SupportedCurrency,
+  nowMs: number = Date.now(),
+): LivePassOffer {
+  const promo = livePassPromoPercent(nowMs);
+  const full = livePassMonthlyCents(currency) * months;
   return {
     months,
     currency,
-    price_cents: livePassPriceCents(months, currency),
-    full_cents: livePassMonthlyCents(currency) * months,
+    price_cents: livePassPriceCents(months, currency, nowMs),
+    full_cents: full,
     discount_percent: LIVE_PASS_DISCOUNT_PERCENT[months],
-    extension_cents: certExtensionPriceCents(months, currency),
+    extension_cents: certExtensionPriceCents(months, currency, nowMs),
+    promo_percent: promo,
+    was_cents: promo ? livePassRegularCents(months, currency) : full,
   };
 }
 

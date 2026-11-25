@@ -1,0 +1,24 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+A word on what the certification course is, since you are still new here.
+
+In your 12 weeks you learn to make the sound of what is there, for yourself. In the nine months after, you learn to sit with someone else while they do it: to ask the question, to wait, to not take over. Help that doesn't take over. The person in front of you heals themselves.
+
+It is for therapists, coaches and bodyworkers who want this in their work, and for people who simply feel drawn to it. Half price through Monday 30 November.
+
+
+THE CERTIFICATION COURSE, 50% OFF: EUR 395 instead of EUR 797
+The class library and manuals, nine months of weekly Q&As and a monthly deepening session, Practice Together, the SVH app, and the way to becoming a certified practitioner. It begins when your 12 weeks are over, so nothing overlaps. The monthly plans are half price too.
+https://songdance.co/courses/certification?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=e-12w-early2_text&{{prefill}}#register
+
+(The prices are already on the pages, in your own currency. No code needed.)
+
+With love,
+Jacob
+
+P.S. You don't need to have finished anything to decide. But you do need your own 12 weeks first, which you are already in.
+
+--
+Three emails about this, the last one on Monday.
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

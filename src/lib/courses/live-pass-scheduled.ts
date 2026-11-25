@@ -31,7 +31,7 @@ import {
   isLivePassMonthlySlug,
   MONTHLY_FIRST_MONTH_LABEL,
   monthlyFirstMonthExtraCents,
-} from './live-pass';
+ monthlySaleForOrder } from './live-pass';
 import { isScheduledMonthly, monthlyStartDay } from './live-pass-monthly';
 import { LIVE_PASS_EVENTS_URL, livePassManageUrlFor } from './live-pass-email';
 
@@ -128,11 +128,13 @@ async function sendScheduledConfirmation(env: ScheduledEnv, reg: CourseRegistrat
   try {
     const currency = (reg.currency || 'EUR').toUpperCase() as SupportedCurrency;
     const extra = monthlyFirstMonthExtraCents(reg.bumps);
+    const sale = await monthlySaleForOrder(env.DB, reg);
     const content = livePassMonthlyScheduledEmail({
       name: reg.first_name,
       loginEmail: reg.email,
       startsLabel: fmtDay(startsOn),
-      firstMonthLabel: formatMoney(reg.amount_cents + extra, currency),
+      firstMonthLabel: formatMoney(sale ? sale.first_cents : reg.amount_cents + extra, currency),
+      secondMonthLabel: sale ? formatMoney(sale.second_cents, currency) : null,
       priceLabel: formatMoney(reg.amount_cents, currency),
       coveredUntilLabel: fmtDay(addDays(startsOn, -1)),
       manageUrl: await livePassManageUrlFor(env, reg.id),

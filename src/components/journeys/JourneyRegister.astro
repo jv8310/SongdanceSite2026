@@ -1,6 +1,7 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import { sideCoursePromoPercent } from '../../lib/promo';
 import GuaranteeBadge from '../GuaranteeBadge.astro';
 
 // The buy form for a single journey page — a dark, integrated "enrolment"
@@ -37,7 +38,7 @@ const THIS_LABEL: Record<Props['course'], string> = {
     </ul>
 
     <div class="jr-register-card">
-      <LaunchOfferCallout scope="this journey" />
+      <LaunchOfferCallout scope="this journey" active={sideCoursePromoPercent() > 0} />
       <!-- Price options -->
       <div class="jr-opts" data-jr-opts>
         <label class="jr-opt" data-jr-opt data-product={course}>
@@ -231,7 +232,7 @@ const THIS_LABEL: Record<Props['course'], string> = {
 
 <script>
   import { COUNTRIES } from '../../lib/countries';
-  import { launchPromoPercent } from '../../lib/promo';
+  import { sideCoursePromoPercent as launchPromoPercent } from '../../lib/promo';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
   type Currency =

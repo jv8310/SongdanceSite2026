@@ -610,7 +610,7 @@ const includes = [
             count: p.installment_count,
             dealPercent: dd.eligible ? dd.percent : 0,
             dealTitle: dd.kind === 'override' ? 'Your discount'
-              : dd.kind === 'promo' ? 'Extended sale' : 'Your workshop discount',
+              : dd.kind === 'promo' ? 'Black Friday' : 'Your workshop discount',
             dealScope: 'On the whole path',
             offerName: 'Certification path',
             discountOff: dd.eligible ? ` (${dd.percent}% off)` : '',
@@ -629,7 +629,7 @@ const includes = [
           count: status.installment_count,
           dealPercent: d.eligible ? d.percent : 0,
           dealTitle: d.kind === 'override' ? 'Your discount'
-            : d.kind === 'promo' ? 'Extended sale' : 'Your workshop discount',
+            : d.kind === 'promo' ? 'Black Friday' : 'Your workshop discount',
           dealScope: 'On the 12-Week Course',
           offerName: '12-Week Course',
           discountOff: d.eligible ? ` (${d.percent}% off)` : '',

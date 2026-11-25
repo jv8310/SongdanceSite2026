@@ -1,0 +1,28 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+This is my last note about it.
+
+If the workshop stayed with you, and a small yes has been waiting, tonight is when the price goes back: the 12-week course to EUR 550, the path to EUR 1,347.
+
+And if now isn't the time, that is an honest answer too. Trees don't hurry.
+
+
+THE 12-WEEK COURSE, 50% OFF: EUR 275 instead of EUR 550
+18+ hours of video across 12 modules, twelve weeks of weekly live Q&As with me, a student community, lifetime access to the materials. The monthly plans are half price too.
+https://songdance.co/courses/12-week?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=b-workshop3_text&{{prefill}}#register
+
+THE CERTIFICATION PATH, 50% OFF: EUR 670 instead of EUR 1,347
+The 12-week course, then the nine-month certification course: class library and manuals, weekly Q&As and a monthly deepening session, Practice Together, and the way to becoming a certified practitioner. The monthly plans are half price too.
+https://songdance.co/courses/certification?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=b-workshop3_text&{{prefill}}#register
+
+(The prices are already on the pages, in your own currency. No code needed.)
+
+With love,
+Jacob
+
+P.S. Tonight means the end of Monday, wherever you are.
+
+--
+Three emails about this, the last one on Monday.
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

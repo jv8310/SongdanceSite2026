@@ -2,6 +2,7 @@
 import '../../styles/journeys.css';
 import Layout from '../../layouts/Layout.astro';
 import PromoBanner from '../../components/PromoBanner.astro';
+import { PROMO_INCLUDES_SIDE_COURSES } from '../../lib/promo';
 import JourneyRegister from '../../components/journeys/JourneyRegister.astro';
 import JourneyCrossPromo from '../../components/journeys/JourneyCrossPromo.astro';
 import MMJSessions from '../../components/journeys/MMJSessions.astro';
@@ -48,7 +49,7 @@ const testimonials = [
     value={product.priceEur}
   />
   <div class="jr-site jr-theme-movement">
-    <PromoBanner />
+    {PROMO_INCLUDES_SIDE_COURSES && <PromoBanner />}
     <!-- Nav -->
     <nav class="jr-nav">
       <div class="jr-nav-inner">

@@ -12,7 +12,7 @@
 // again from the pass page. No JavaScript: a form and an answer.
 import Layout from '../../../layouts/Layout.astro';
 import { getCourseRegistrationById } from '../../../lib/courses/db';
-import { isLivePassMonthlySlug, LIVE_PASS_PAGE_PATH, monthlyFirstMonthExtraCents } from '../../../lib/courses/live-pass';
+import { isLivePassMonthlySlug, LIVE_PASS_PAGE_PATH, monthlyFirstMonthExtraCents, monthlySaleForOrder } from '../../../lib/courses/live-pass';
 import { LIVE_PASS_MANAGE_TOKEN_PARAM, verifyLivePassManageToken } from '../../../lib/courses/live-pass-manage-link';
 import {
   cancelMonthly,
@@ -70,8 +70,11 @@ if (reg && isLivePassMonthlySlug(reg.product_slug)) {
 
 const price = reg ? formatMoney(reg.amount_cents, (reg.currency || 'EUR').toUpperCase()) : '';
 // The first month, when it costs more than the rest (live-pass.ts, "The monthly's price").
+const sale = reg ? await monthlySaleForOrder(env.DB, reg) : null;
 const firstPrice = reg
-  ? formatMoney(reg.amount_cents + monthlyFirstMonthExtraCents(reg.bumps), (reg.currency || 'EUR').toUpperCase())
+  ? sale
+    ? `${formatMoney(sale.first_cents, (reg.currency || 'EUR').toUpperCase())}, then ${formatMoney(sale.second_cents, (reg.currency || 'EUR').toUpperCase())} the second month`
+    : formatMoney(reg.amount_cents + monthlyFirstMonthExtraCents(reg.bumps), (reg.currency || 'EUR').toUpperCase())
   : '';
 const passHref = reg ? `${LIVE_PASS_PAGE_PATH}?email=${encodeURIComponent(reg.email)}#get` : LIVE_PASS_PAGE_PATH;
 

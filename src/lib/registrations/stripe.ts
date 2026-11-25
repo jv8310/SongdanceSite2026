@@ -1290,7 +1290,40 @@ export type CreateSubscriptionCheckoutInput = {
   // A line under the pay button (Checkout's custom_text.submit), e.g. what is
   // charged when, since Stripe's own summary calls a deferred start a trial.
   submit_message?: string;
+  // A coupon (its id) applied to the subscription from its first invoice: the
+  // monthly live pass's sale months. Make sure it exists first (ensureCoupon).
+  coupon?: string;
 };
+
+// Make sure a percent-off coupon that lasts a number of months exists, under an
+// id of our own, so every checkout that needs it names the same one. Creating
+// one that is already there is Stripe's "resource_already_exists": fine.
+export async function ensureRepeatingCoupon(input: {
+  secretKey: string;
+  id: string;
+  name: string;
+  percent_off: number;
+  duration_in_months: number;
+}): Promise<void> {
+  const form = new URLSearchParams();
+  form.set('id', input.id);
+  form.set('name', input.name.slice(0, 40));
+  form.set('percent_off', String(input.percent_off));
+  form.set('duration', 'repeating');
+  form.set('duration_in_months', String(input.duration_in_months));
+  const res = await fetch(`${STRIPE_BASE}/coupons`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form,
+  });
+  if (res.ok) return;
+  const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+  if (body?.error?.code === 'resource_already_exists') return;
+  throw new Error(`Stripe coupons: ${res.status} ${body?.error?.message ?? ''}`.trim());
+}
 
 export async function createSubscriptionCheckoutSession(
   input: CreateSubscriptionCheckoutInput,
@@ -1365,6 +1398,7 @@ export async function createSubscriptionCheckoutSession(
       input.payment_intent_description,
     );
   }
+  if (input.coupon) form.set('discounts[0][coupon]', input.coupon);
   if (input.trial_end) {
     form.set('subscription_data[trial_end]', String(Math.floor(input.trial_end)));
   }

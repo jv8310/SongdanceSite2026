@@ -14,6 +14,7 @@
 // (imported as `D`); the transactional/other lifecycle emails (confirmation,
 // reminders, abandoned, no-show) keep the simpler `shell()` below.
 
+import { LAUNCH_PROMO_SALE_NAME } from '../promo';
 import * as D from './email-design';
 import { type DownsellOffer, BUNDLE_PATH } from './downsell-offers';
 import { guarantee } from '../guarantee';
@@ -494,7 +495,7 @@ export function attendedEmail1(
 ): EmailContent {
   const left = hoursPhrase(ctx.hoursRemaining);
   const pct = ctx.discountPercent;
-  // Promo: the launch sale, named by its plain calendar deadline. Otherwise the
+  // Promo: the site sale, named by its plain calendar deadline. Otherwise the
   // 20% participant window on its 48h countdown. See postWorkshopEmailOffer.
   const discountTextLine = ctx.promo
     ? `Right now everything is ${pct}% off for our launch — through ${ctx.discountEndsLocal}. The link below already knows it's you: your discounted price is on the page, nothing to type.`
@@ -565,7 +566,7 @@ export function attendedEmail1(
       D.bullet('A supportive student community — and, on joining, five of Jacob’s original mantras.'),
       D.offerBox({
         variant: 'cream',
-        badge: ctx.promo ? `${pct}% off · launch sale` : `${pct}% off · for participants`,
+        badge: ctx.promo ? `${pct}% off · ${LAUNCH_PROMO_SALE_NAME}` : `${pct}% off · for participants`,
         title: ctx.promo ? 'Your launch price is waiting' : 'Your participant price is waiting',
         lines: [
           ctx.promo
@@ -637,11 +638,11 @@ export function attendedEmail2(
       D.pullQuote('Below every wound, another door.'),
       D.offerBox({
         variant: 'cream',
-        badge: ctx.promo ? `${pct}% off · launch sale` : `about ${left} left`,
+        badge: ctx.promo ? `${pct}% off · ${LAUNCH_PROMO_SALE_NAME}` : `about ${left} left`,
         title: `Your ${pct}% is still on`,
         lines: [
           ctx.promo
-            ? `The launch sale runs <strong>through ${escapeHtml(
+            ? `The ${LAUNCH_PROMO_SALE_NAME} runs <strong>through ${escapeHtml(
                 ctx.discountEndsLocal,
               )}</strong>. After that, the regular price returns.`
             : `Your participant discount ends in about <strong>${escapeHtml(
@@ -661,7 +662,7 @@ export function attendedEmail2(
     html,
     text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nWhere the twelve weeks take you: it moves gently, one module at a time — from what sounding actually is (and how it differs from singing, toning, chanting), through hearing the feeling and the pattern inside your own voice and using sound to settle the nervous system, into the five core wounds met safely, sounding toward your own essence, and finally carrying the practice forward on your own.\n\nThe shape is built to fit a life: 18+ hours of video you take at your own pace, a weekly live hour with Jacob for questions (rotating timezones, with replays), a student community to practise with, and lifetime access to all of it.\n\nIt's not an eternal excavation — it's a tool you keep. Expect a real relationship with your own voice.\n\n${
       ctx.promo
-        ? `A practical note: the launch sale runs through ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, the regular price returns.`
+        ? `A practical note: the ${LAUNCH_PROMO_SALE_NAME} runs through ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, the regular price returns.`
         : `A practical note: your ${pct}% ends in about ${left} — ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, full price.`
     }\n\n${GUARANTEE_TEXT}\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
@@ -699,7 +700,7 @@ export function attendedEmail3(
         D.displayHeading(`Still here when you're ${D.accent('ready')}`),
         D.para(greeting(ctx.name)),
         D.para(
-          `A gentle note, no countdown: the launch sale — <strong>${pct}% off</strong> the 12-week course — runs through <strong>${escapeHtml(
+          `A gentle note, no countdown: the ${LAUNCH_PROMO_SALE_NAME} — <strong>${pct}% off</strong> the 12-week course — runs through <strong>${escapeHtml(
             ctx.discountEndsLocal,
           )}</strong>. If the practice has been on your mind, the door is open at that price until then; if now isn't the time, that's an honest answer too.`,
         ),
@@ -708,7 +709,7 @@ export function attendedEmail3(
         ),
         D.offerBox({
           variant: 'cream',
-          badge: `${pct}% off · launch sale`,
+          badge: `${pct}% off · ${LAUNCH_PROMO_SALE_NAME}`,
           title: "Here when you're ready",
           lines: [
             `${pct}% off, already applied for you — the button opens the page with your price showing.`,
@@ -730,7 +731,7 @@ export function attendedEmail3(
     return {
       subject: 'Still here, if the 12-week course is calling',
       html,
-      text: `${textGreeting(ctx.name)}\n\nA gentle note, no countdown: the launch sale — ${pct}% off the 12-week course — runs through ${ctx.discountEndsLocal}. If the practice has been on your mind, the door is open at that price until then; if now isn't the time, that's an honest answer too.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access. ${pct}% off is already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nUnsure whether it's for you? Reply with your question any time; a person answers plainly. If it's not for you, we'll say so.\n\n${GUARANTEE_TEXT}\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+      text: `${textGreeting(ctx.name)}\n\nA gentle note, no countdown: the ${LAUNCH_PROMO_SALE_NAME} — ${pct}% off the 12-week course — runs through ${ctx.discountEndsLocal}. If the practice has been on your mind, the door is open at that price until then; if now isn't the time, that's an honest answer too.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access. ${pct}% off is already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nUnsure whether it's for you? Reply with your question any time; a person answers plainly. If it's not for you, we'll say so.\n\n${GUARANTEE_TEXT}\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
     };
   }
 
@@ -1241,6 +1242,8 @@ export type LivePassMonthlyConfirmedCtx = {
   // "€52" — what the first month cost, when it cost more than the rest
   // (live-pass.ts, "The monthly's price"); null for a monthly at one price.
   firstMonthLabel?: string | null;
+  // "€35.20" — the second month, when a sale made it cheaper than the rest.
+  secondMonthLabel?: string | null;
   renewsLabel: string | null; // "18 November 2026" — the next charge
   // Taken with the certification-window extension: the window to apply for
   // certification stays open for as long as the monthly is paid.
@@ -1254,7 +1257,9 @@ const MONTHLY_EXTENSION_LINE =
 
 export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx): EmailContent {
   const stepsDown = !!ctx.firstMonthLabel && ctx.firstMonthLabel !== ctx.priceLabel;
-  const renews = stepsDown
+  const renews = ctx.secondMonthLabel
+    ? `Your first month (${ctx.firstMonthLabel}) is paid. The second month is ${ctx.secondMonthLabel}, and from the third it is ${ctx.priceLabel} a month, renewing by itself on the same day each month${ctx.renewsLabel ? ` — the next payment is on ${ctx.renewsLabel}` : ''}.`
+    : stepsDown
     ? ctx.renewsLabel
       ? `Your first month (${ctx.firstMonthLabel}) is paid. From the second month it is ${ctx.priceLabel} a month, renewing by itself on the same day each month — the next payment is on ${ctx.renewsLabel}.`
       : `Your first month (${ctx.firstMonthLabel}) is paid. From the second month it is ${ctx.priceLabel} a month, renewing by itself on the same day each month.`
@@ -1297,6 +1302,7 @@ export type LivePassMonthlyScheduledCtx = {
   loginEmail: string;
   startsLabel: string; // "1 January 2027" — the day of the first charge
   firstMonthLabel: string; // "€52"
+  secondMonthLabel?: string | null; // a sale's second month, when it differs
   priceLabel: string; // "€44" — each month after the first
   coveredUntilLabel: string | null; // "31 December 2026" — the live sessions they already have
   manageUrl: string | null;
@@ -1307,7 +1313,9 @@ export function livePassMonthlyScheduledEmail(ctx: LivePassMonthlyScheduledCtx):
   const opens = ctx.coveredUntilLabel
     ? `You already have the live sessions until ${ctx.coveredUntilLabel}, so your monthly picks up from there: from ${ctx.startsLabel} it opens every weekly Q&A and every monthly deepening session.`
     : `From ${ctx.startsLabel} it opens every weekly Q&A and every monthly deepening session.`;
-  const charges = `The first month, ${ctx.firstMonthLabel}, is charged on ${ctx.startsLabel}. From then on it is ${ctx.priceLabel} a month, on the same day each month, until you cancel.`;
+  const charges = ctx.secondMonthLabel
+    ? `The first month, ${ctx.firstMonthLabel}, is charged on ${ctx.startsLabel}. The second month is ${ctx.secondMonthLabel}, and from the third it is ${ctx.priceLabel} a month, on the same day each month, until you cancel.`
+    : `The first month, ${ctx.firstMonthLabel}, is charged on ${ctx.startsLabel}. From then on it is ${ctx.priceLabel} a month, on the same day each month, until you cancel.`;
   const where = "You'll find the sessions under Events in the CiRCLE — sign in with";
   const stop = ctx.manageUrl
     ? `Changed your mind? Cancel before ${ctx.startsLabel} from the link below and nothing is ever charged — or any time after, and nothing more is charged.`

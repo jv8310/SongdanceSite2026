@@ -98,7 +98,12 @@ const courseCash = await computeCourseCashIn(env.DB, { from, to, money });
 const livePass = await computeLivePassStats(env.DB, { from, to, money });
 const days = mergeDailyStreams(report, courses, from, to);
 // The Forgiveness Course against its own campaigns — the box at the top.
-const forgiveness = await computeForgivenessReport(env.DB, { from, to, money });
+const forgiveness = await computeForgivenessReport(env.DB, {
+  from, to, money,
+  drip: env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID
+    ? { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID }
+    : null,
+});
 const campaignSpend = await computeAdSpendByCampaign(env.DB, { from, to });
 // Per-workshop funnel + workshop-only (TOF) ROAS. Not narrowed by the workshop
 // filter — this is the acquisition view across every workshop in the window.

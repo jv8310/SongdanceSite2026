@@ -216,14 +216,20 @@ export const BUNDLE_OFFER: Offer = getBundleOffer('EUR');
 // unchanged when the promo isn't live. A `?discount=N` override should NOT be
 // combined with this (the override wins outright) — the callers only apply
 // this when no override is present.
+// The certification's sale price: the percent off its list price, floored to a
+// round 5 (EUR €797 → €395), the same rule as the path's lines (pctMajor in
+// path.ts), so the certification alone, the path's certification line and the
+// /courses card all show one figure and the percent is never under-delivered.
+export function certPromoPriceCents(baseCents: number): number {
+  return Math.floor((baseCents * (100 - LAUNCH_PROMO_PERCENT)) / 100 / 500) * 500;
+}
+
 export function applyLaunchPromoToOffer(
   offer: Offer,
   nowMs: number = Date.now(),
 ): Offer {
   if (!launchPromoActive(nowMs)) return offer;
-  const promoFullCents = Math.round(
-    (offer.base_price * 100 * (100 - LAUNCH_PROMO_PERCENT)) / 100,
-  );
+  const promoFullCents = certPromoPriceCents(offer.base_price * 100);
   const oldFullCents = offer.price_cents; // normal full; ladders are relative to it
   const reLadder = (p?: InstallmentPlan): InstallmentPlan | undefined => {
     if (!p) return undefined;
@@ -243,7 +249,7 @@ export function applyLaunchPromoToOffer(
     ...offer,
     price: Math.round(promoFullCents / 100),
     price_cents: promoFullCents,
-    save_note: `${LAUNCH_PROMO_TAG} — ${LAUNCH_PROMO_PERCENT}% off, through ${LAUNCH_PROMO_END_LABEL}`,
+    save_note: `${LAUNCH_PROMO_TAG}: ${LAUNCH_PROMO_PERCENT}% off, through ${LAUNCH_PROMO_END_LABEL}`,
     installments: reLadder(offer.installments),
     installments_6x: reLadder(offer.installments_6x),
     installments_12x: reLadder(offer.installments_12x),
