@@ -420,6 +420,15 @@ announcement follow.
   whatever period the page shows. ROAS counts every sale of the course, ads or not — no order says
   where its buyer came from. The box shows while registration is open, afterwards only on a period
   that saw it sell or spend. Keep the word in the campaign name or the spend lands on the workshops.
+  **New vs returning customers** (24 Nov 2026, [`course-buyers.ts`](src/lib/ads/course-buyers.ts), shared with the SD-REPORT):
+  the box splits the sales, with revenue each, ad spend per new customer and a "New · ret." column
+  on the period rows. Returning = before this order the address had a paid order on the site (course,
+  pass, album, session, a paid workshop / masterclass seat, a retreat) **or** holds a product tag
+  (`prod_…`, `prodG_…`, `client`, `klant`; never a `…_free` one) in Drip or on the contact list that
+  none of their own site orders explains (bought before the site took payments). New customers are
+  also told apart by whether the email list knew them a day or more before. Drip is asked once per
+  order and kept in `events` (`course-buyer-drip-<order id>`); an order Drip did not answer for
+  is read on the rest and the box says so. Free seats and free places make nobody a customer.
 
 ## Forgiveness prayer lead magnet — offline, kept for later
 
@@ -2132,14 +2141,23 @@ notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/repor
   dashboard would show for that window.
 - **Profit, and new against returning clients** (November 2026): a third row
   of cards. **Profit = Sold − all ad spend** (after ad spend only, a plan in
-  full, like the session cards; the cash-in figure beside it). **Clients**
-  (`computeClientMix` in `stats.ts`): everyone who paid for something in the
-  window (a workshop payment or a course order, the rows Sold is made of, so
-  new + returning sales add up to Sold; an order that took no money makes
-  nobody a client). **Returning** = the address paid for a workshop, a course
-  or a retreat on the site before the window opened; **new** = their first
-  payment falls in it. Purchases from the Drip years are not on record, so
-  those buyers read as new, and the email says so.
+  full, like the session cards; the cash-in figure beside it). **Course sales
+  by new and returning customers** (`computeCourseCustomerMix` in `stats.ts`,
+  25 Nov 2026; it replaced a "clients" split that counted workshop seats):
+  only course orders that took money (courses, passes, albums, private
+  sessions), at full value with their bumps, each read by
+  [`course-buyers.ts`](src/lib/ads/course-buyers.ts). **Returning** = before
+  that order the buyer had bought a course or a retreat on the site, or holds
+  a product tag from the Drip years. **A workshop or masterclass seat never
+  makes a returning customer** (Jacob: a workshop registrant buying a course is
+  a new customer), **except on a Forgiveness Course order**, where an earlier
+  paid seat counts (`seatsCountFor`), as it does in the Forgiveness box. The
+  report asks Drip once per order (kept in `events`, `course-buyer-drip-<id>`).
+- **And with the average** (25 Nov 2026): every headline card carries a second
+  change, against the **average of the four weeks before** ("vs 28-day avg" on
+  the daily = the 28 days before ÷ 28; "vs 4-week avg" on the weekly = ÷ 4;
+  `averageHeadline`). ROAS and the seat prices are those 28 days' own ratio,
+  not divided.
 - **The pre-workshop briefing** (SD-BRIEFING, `briefing.ts`, ~5 minutes before
   each live session; November 2026): registered, the session's own **price
   per registration** (its row on the performance report, today's spend pulled

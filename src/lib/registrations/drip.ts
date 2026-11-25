@@ -72,6 +72,8 @@ export type DripSubscriber = {
   time_zone?: string;
   tags: string[];
   custom_fields: Record<string, string>;
+  // When Drip first saw this address (ISO).
+  created_at?: string;
 };
 
 // Look up a subscriber by email. Returns null when Drip 404s — the email
@@ -114,6 +116,7 @@ export async function getSubscriber(
       phone?: string;
       tags?: string[];
       custom_fields?: Record<string, string>;
+      created_at?: string;
     }>;
   };
   const s = data.subscribers?.[0];
@@ -127,6 +130,7 @@ export async function getSubscriber(
     phone: s.phone,
     tags: s.tags ?? [],
     custom_fields: s.custom_fields ?? {},
+    created_at: s.created_at,
   };
 }
 
