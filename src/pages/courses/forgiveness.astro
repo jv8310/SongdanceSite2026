@@ -2,6 +2,7 @@
 import '../../styles/forgiveness.css';
 import Layout from '../../layouts/Layout.astro';
 import PromoBanner from '../../components/PromoBanner.astro';
+import { PROMO_INCLUDES_SIDE_COURSES } from '../../lib/promo';
 import FCNav from '../../components/forgiveness/FCNav.astro';
 import FCHero from '../../components/forgiveness/FCHero.astro';
 import FCVideo from '../../components/forgiveness/FCVideo.astro';
@@ -64,7 +65,7 @@ const sessionHours = FORGIVENESS_SESSION_MINUTES / 60;
     value={FORGIVENESS_PRICE.EUR}
   />
   <div class="fc-site">
-    <PromoBanner />
+    {PROMO_INCLUDES_SIDE_COURSES && <PromoBanner />}
     <FCNav open={open} datesLabel={FORGIVENESS_DATES_LABEL} />
     <FCHero open={open} priceLabel={priceLabel} datesLabel={FORGIVENESS_DATES_LABEL} sessionHours={sessionHours} />
     <FCVideo />

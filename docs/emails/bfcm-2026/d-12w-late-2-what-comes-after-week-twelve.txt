@@ -1,0 +1,32 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+The certification course is for you if somewhere in these weeks you thought: I would like to sit with someone else while they do this. Nine months of classes, manuals, Q&As and practice with fellow students. You learn to hold space. The person in front of you heals themselves.
+
+The live pass is for you if you simply want the weekly hour to continue: the Q&As and the monthly deepening session, for as many months as you choose.
+
+Half price on the first, 20% off the second, through Monday 30 November. Both start when your 12 weeks are over.
+
+
+THE CERTIFICATION COURSE, 50% OFF: EUR 395 instead of EUR 797
+The class library and manuals, nine months of weekly Q&As and a monthly deepening session, Practice Together, the SVH app, and the way to becoming a certified practitioner. It begins when your 12 weeks are over, so nothing overlaps. The monthly plans are half price too.
+https://songdance.co/courses/certification?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=d-12w-late2_text&{{prefill}}#register
+
+THE LIVE PASS, 20% OFF
+The weekly Q&As and the monthly deepening session.
+1 month (4 Q&As, 1 deepening session): EUR 41 instead of EUR 52
+3 months (12 Q&As, 3 deepening sessions): EUR 105 instead of EUR 132
+6 months (24 Q&As, 6 deepening sessions): EUR 187 instead of EUR 234
+It starts the day after your course's live sessions end, so you pay for nothing twice.
+https://songdance.co/courses/live-pass?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=d-12w-late2_text&{{prefill}}#lp-buy-title
+
+(The prices are already on the pages, in your own currency. No code needed.)
+
+With love,
+Jacob
+
+P.S. Not sure? Bring it to this week's Q&A, or reply to this email.
+
+--
+Three emails about this, the last one on Monday.
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

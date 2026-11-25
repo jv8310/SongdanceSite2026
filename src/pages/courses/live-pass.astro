@@ -18,6 +18,8 @@
 // "The monthly's price"). ?months=monthly picks
 // it; an address that already has one running sees "Manage my monthly pass" instead,
 // which emails the manage link to that address (never shown on screen).
+import LaunchOfferCallout from '../../components/promo/LaunchOfferCallout.astro';
+import { LIVE_PASS_PROMO_PERCENT } from '../../lib/promo';
 import SiteLayout from '../../components/SiteLayout.astro';
 import { COUNTRIES, findCountry } from '../../lib/countries';
 import { edgeCountry } from '../../lib/geo';
@@ -434,6 +436,8 @@ const faq: { q: string; a: string }[] = [
         >
           <p class="lp-status" data-lp-status role="status" hidden={!startNotice}>{startNotice}</p>
 
+          <LaunchOfferCallout scope="the live passes of 1, 3 and 6 months" percent={LIVE_PASS_PROMO_PERCENT} note="Already in the prices below." />
+
           <fieldset class="lp-options">
             <legend class="lp-sr">Choose your pass</legend>
             <div class="lp-plans">
@@ -453,11 +457,13 @@ const faq: { q: string; a: string }[] = [
                     <span class="lp-plan-len">{aboutLabel(o.months)}</span>
                     <span class="lp-plan-price">
                       <strong data-lp-price={o.months}>{money(o.price_cents)}</strong>
-                      {o.discount_percent > 0 && <s class="lp-was" data-lp-was={o.months}>{money(o.full_cents)}</s>}
+                      {(o.discount_percent > 0 || o.promo_percent > 0) && <s class="lp-was" data-lp-was={o.months}>{money(o.was_cents)}</s>}
                     </span>
                     <span class="lp-plan-per">
                       <span><span data-lp-per={o.months}>{money(perMonthCents(o))}</span> a month</span>
-                      {o.discount_percent > 0 && <span class="lp-save">{o.discount_percent}% off</span>}
+                      {o.promo_percent > 0
+                        ? <span class="lp-save">Black Friday · {o.promo_percent}% off</span>
+                        : o.discount_percent > 0 && <span class="lp-save">{o.discount_percent}% off</span>}
                     </span>
                     <span class="lp-plan-holds">
                       <span><i class="ph-light ph-chats-circle" aria-hidden="true"></i> {s.qa} Q&amp;As</span>
@@ -643,7 +649,7 @@ const faq: { q: string; a: string }[] = [
   import { formatMoney } from '../../lib/workshops/currency';
   import { COUNTRIES } from '../../lib/countries';
 
-  type Offer = { price_cents: number; full_cents: number; extension_cents: number };
+  type Offer = { price_cents: number; full_cents: number; was_cents: number; extension_cents: number };
   type Period = { startsOn: string; endsOn: string; extensionHelps: boolean };
   type Status = {
     live_until: string | null;
@@ -714,7 +720,7 @@ const faq: { q: string; a: string }[] = [
         const was = form!.querySelector<HTMLElement>(`[data-lp-was="${m}"]`);
         const per = form!.querySelector<HTMLElement>(`[data-lp-per="${m}"]`);
         if (price) price.textContent = formatMoney(o.price_cents, cur);
-        if (was) was.textContent = formatMoney(o.full_cents, cur);
+        if (was) was.textContent = formatMoney(o.was_cents, cur);
         // Same sum as the server's perMonthCents: rounded up to a whole unit.
         if (per) per.textContent = formatMoney(Math.ceil(o.price_cents / Number(m) / 100) * 100, cur);
       }

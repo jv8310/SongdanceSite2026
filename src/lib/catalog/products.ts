@@ -23,7 +23,7 @@ import {
   COUNTRY_CURRENCY,
   type SupportedCurrency,
 } from '../workshops/currency';
-import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../promo';
+import { launchPromoActive, LAUNCH_PROMO_PERCENT, PROMO_INCLUDES_SIDE_COURSES } from '../promo';
 
 // The catalog id IS the Pixel content_id. Use the canonical product slugs.
 // Note we deliberately list ONE certification product (the bundle/"path" is the
@@ -154,6 +154,9 @@ export function salePriceFor(
 ): number | null {
   if (id === 'songdeck') return null;
   if (!launchPromoActive(nowMs)) return null;
+  // The Black Friday sale covers the 12-week course, the certification and the
+  // masterclass only; the other courses keep their price.
+  if (!PROMO_INCLUDES_SIDE_COURSES && id !== 'svh-12week' && id !== 'cc-cert' && id !== 'masterclass') return null;
   const regular = priceFor(id, currency);
   if (regular == null) return null;
   if (id === 'cc-cert') {

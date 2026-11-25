@@ -1,0 +1,28 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+If you want this for yourself: the 12-week course. A practice that fits in a kitchen. Twelve modules, a live hour with me every week, and the materials stay yours for life.
+
+If people already come to you with what they carry: the certification path. First the same 12 weeks, because nobody holds space for a sound they haven't made themselves. Then nine months of learning to hold that space. A space holder, not a healer: the person in front of you heals themselves.
+
+Both are half price through Monday 30 November. The twelve weeks of live Q&As start the day you join, and the materials stay yours for life.
+
+
+THE 12-WEEK COURSE, 50% OFF: EUR 275 instead of EUR 550
+18+ hours of video across 12 modules, twelve weeks of weekly live Q&As with me, a student community, lifetime access to the materials. The monthly plans are half price too.
+https://songdance.co/courses/12-week?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=b-workshop2_text&{{prefill}}#register
+
+THE CERTIFICATION PATH, 50% OFF: EUR 670 instead of EUR 1,347
+The 12-week course, then the nine-month certification course: class library and manuals, weekly Q&As and a monthly deepening session, Practice Together, and the way to becoming a certified practitioner. The monthly plans are half price too.
+https://songdance.co/courses/certification?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=b-workshop2_text&{{prefill}}#register
+
+(The prices are already on the pages, in your own currency. No code needed.)
+
+With love,
+Jacob
+
+P.S. The 12-week course can become the path later. But the path at half price is this weekend.
+
+--
+Three emails about this, the last one on Monday.
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

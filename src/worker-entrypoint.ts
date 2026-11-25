@@ -36,6 +36,7 @@ import { runSessionCron } from './lib/sessions/cron';
 import { syncAppTags } from './lib/broadcasts/app-tags';
 import { retryCertAppSync } from './lib/certification/app-sync';
 import { syncCertTags } from './lib/broadcasts/cert-tags';
+import { syncBfcmTagsOnSchedule } from './lib/broadcasts/bfcm-tags';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runContactTagBackfill } from './lib/contacts/tag-backfill';
 import { runMasterclassSeatMove } from './lib/workshops/masterclass-move';
@@ -437,6 +438,23 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[broadcasts/cert-tags] sync failed', err);
+        }),
+    );
+
+    // The Black Friday 2026 sale's `bfcm:` tags on the contact list (who gets
+    // which of its broadcasts, and who bought since it opened). Stops by itself
+    // a week after the sale; a broadcast naming one recomputes at launch.
+    ctx.waitUntil(
+      syncBfcmTagsOnSchedule(env.DB)
+        .then((r) => {
+          if (!r) return;
+          if (!r.ok) console.log(`[broadcasts/bfcm-tags] not synced: ${r.error}`);
+          else if (r.added || r.removed) {
+            console.log(`[broadcasts/bfcm-tags] known=${r.known} added=${r.added} removed=${r.removed}`);
+          }
+        })
+        .catch((err) => {
+          console.error('[broadcasts/bfcm-tags] sync failed', err);
         }),
     );
 

@@ -91,7 +91,7 @@ const showAdminBar = (path === '/admin' || path.startsWith('/admin/')) && !path.
     <title>{title}</title>
     <script is:inline define:vars={{ promoPayload, mcPromoPayload }}>
       window.__SD_PROMO__ = promoPayload;
-      window.__SD_PROMO__.active = Date.now() < promoPayload.endsAtMs;
+      window.__SD_PROMO__.active = Date.now() >= promoPayload.startsAtMs && Date.now() < promoPayload.endsAtMs;
       window.__SD_MC_PROMO__ = mcPromoPayload;
       window.__SD_MC_PROMO__.active = Date.now() < mcPromoPayload.endsAtMs;
     </script>

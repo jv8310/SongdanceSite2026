@@ -78,7 +78,7 @@ if (ok && reg && workshop) {
   const status = bestDiscountStatus(anchors, now);
   if (launchPromoActive(now)) {
     // The launch promo is site-wide (not gated on attendance), so it's always
-    // grantable while live — 50% off through July 15, with a countdown to it.
+    // grantable while live — 50% off through its deadline, with a countdown to it.
     offer = postWorkshopEmailOffer(now + DISCOUNT_WINDOW_HOURS * 3600_000, now);
     showCountdown = true;
   } else if (status.eligible) {

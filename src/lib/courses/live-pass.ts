@@ -88,6 +88,7 @@
 // site tells a monthly payment from a setup fee by its amount, and a €52 first
 // cycle on a €44 plan would never be counted.
 
+import { livePassPromoPercent } from '../promo';
 import { formatMoney, type SupportedCurrency } from '../workshops/currency';
 import { businessDayOf, businessWindowUtc } from '../workshops/periods';
 import { albumPriceCents } from '../music/product';
@@ -222,15 +223,34 @@ export function livePassMonthlyRenewalCents(currency: SupportedCurrency): number
   );
 }
 
-// The pass, discounted for its length and floored to a whole unit.
-export function livePassPriceCents(months: LivePassMonths, currency: SupportedCurrency): number {
+// The pass at its usual price: discounted for its length and floored to a whole
+// unit.
+export function livePassRegularCents(months: LivePassMonths, currency: SupportedCurrency): number {
   const full = livePassMonthlyCents(currency) * months;
   return floorTo((full * (100 - LIVE_PASS_DISCOUNT_PERCENT[months])) / 100, stepCents(currency));
 }
 
+// The pass as it is charged at this moment: its usual price, less the site
+// sale's percent while one runs (Black Friday 2026: 20%, promo.ts), floored
+// again so the percent is never under-delivered. The page and the checkout both
+// read this, so the figure shown is the figure charged.
+export function livePassPriceCents(
+  months: LivePassMonths,
+  currency: SupportedCurrency,
+  nowMs: number = Date.now(),
+): number {
+  const regular = livePassRegularCents(months, currency);
+  const promo = livePassPromoPercent(nowMs);
+  return promo ? floorTo((regular * (100 - promo)) / 100, stepCents(currency)) : regular;
+}
+
 // The certification-window add-on: 20% of the pass it rides on, floored.
-export function certExtensionPriceCents(months: LivePassMonths, currency: SupportedCurrency): number {
-  return floorTo((livePassPriceCents(months, currency) * CERT_EXTENSION_PERCENT) / 100, stepCents(currency));
+export function certExtensionPriceCents(
+  months: LivePassMonths,
+  currency: SupportedCurrency,
+  nowMs: number = Date.now(),
+): number {
+  return floorTo((livePassPriceCents(months, currency, nowMs) * CERT_EXTENSION_PERCENT) / 100, stepCents(currency));
 }
 
 export type LivePassOffer = {
@@ -240,16 +260,29 @@ export type LivePassOffer = {
   full_cents: number; // months × the monthly price, before the discount
   discount_percent: number;
   extension_cents: number;
+  // The site sale, while one runs: its percent (0 outside it) and the price to
+  // strike through beside the charged one — the pass's usual price during the
+  // sale, months × the monthly price otherwise.
+  promo_percent: number;
+  was_cents: number;
 };
 
-export function livePassOffer(months: LivePassMonths, currency: SupportedCurrency): LivePassOffer {
+export function livePassOffer(
+  months: LivePassMonths,
+  currency: SupportedCurrency,
+  nowMs: number = Date.now(),
+): LivePassOffer {
+  const promo = livePassPromoPercent(nowMs);
+  const full = livePassMonthlyCents(currency) * months;
   return {
     months,
     currency,
-    price_cents: livePassPriceCents(months, currency),
-    full_cents: livePassMonthlyCents(currency) * months,
+    price_cents: livePassPriceCents(months, currency, nowMs),
+    full_cents: full,
     discount_percent: LIVE_PASS_DISCOUNT_PERCENT[months],
-    extension_cents: certExtensionPriceCents(months, currency),
+    extension_cents: certExtensionPriceCents(months, currency, nowMs),
+    promo_percent: promo,
+    was_cents: promo ? livePassRegularCents(months, currency) : full,
   };
 }
 

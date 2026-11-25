@@ -1,0 +1,28 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+You have sounded with us, in a workshop or a masterclass. One hour is enough to find out that the voice knows things the mind hasn't caught up with yet.
+
+It is not enough to make it yours. That takes a while, and a map: fear, anger, grief, joy, the flat days when nothing seems to be there, the old wounds. One at a time, at your own tempo.
+
+That is the 12-week course. After a workshop it is usually 20% off for two days. From today through Monday 30 November it is 50% off, and so is the certification path, for those who want to hold space for others one day.
+
+
+THE 12-WEEK COURSE, 50% OFF: EUR 275 instead of EUR 550
+18+ hours of video across 12 modules, twelve weeks of weekly live Q&As with me, a student community, lifetime access to the materials. The monthly plans are half price too.
+https://songdance.co/courses/12-week?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=b-workshop1_text&{{prefill}}#register
+
+THE CERTIFICATION PATH, 50% OFF: EUR 670 instead of EUR 1,347
+The 12-week course, then the nine-month certification course: class library and manuals, weekly Q&As and a monthly deepening session, Practice Together, and the way to becoming a certified practitioner. The monthly plans are half price too.
+https://songdance.co/courses/certification?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=b-workshop1_text&{{prefill}}#register
+
+(The prices are already on the pages, in your own currency. No code needed.)
+
+With love,
+Jacob
+
+P.S. Questions about which one fits? Reply to this email. A person answers, plainly. If it's not for you, we'll say so.
+
+--
+Three emails about this, the last one on Monday.
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium
