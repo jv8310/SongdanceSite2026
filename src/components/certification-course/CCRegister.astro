@@ -1542,7 +1542,7 @@ const countriesOther = COUNTRIES_OTHER;
                       d.kind === 'override'
                         ? 'Your discount'
                         : d.kind === 'promo'
-                          ? 'Extended sale'
+                          ? LAUNCH_PROMO_TAG
                           : 'Your workshop discount',
                     detail: `On the whole path${savedText}`,
                     countdown: timed,
@@ -1945,7 +1945,9 @@ const countriesOther = COUNTRIES_OTHER;
         }
         // Stale launch-sale price frozen in the cache after the sale closed —
         // discard it and fetch the current price instead of flashing the old one.
-        if (decisionIsPromoPriced(parsed.decision) && !launchPromoActive()) {
+        // …and the other way round: a price cached before the sale opened is
+        // too high while it runs (the checkout charges the sale price).
+        if (decisionIsPromoPriced(parsed.decision) !== launchPromoActive()) {
           try { localStorage.removeItem(STORAGE_KEY); } catch {}
           recheckAndRender(parsed.email);
           return true;

@@ -1,0 +1,28 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+This is my last note about it.
+
+After tonight a workshop seat is EUR 22 again, which is still a fair price for an hour of honesty. But if you were going to come one day anyway, today it is EUR 11.
+
+One tone is the whole instruction. The rest we do together.
+
+
+THE WORKSHOP, 50% OFF: EUR 11 instead of EUR 22
+Seventy minutes, live on Zoom: an introduction to Somatic Vocal Healing, a somatic warm-up with live piano, guided sounding, and a first tool for everyday life. Your microphone stays off unless you want it on. Replay included.
+https://songdance.co/workshop?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=a-new3_text&{{prefill}}#register
+
+THE MASTERCLASS, 50% OFF: EUR 22 instead of EUR 44
+A hundred minutes, live on Zoom, for therapists, coaches, bodyworkers, teachers and anyone who holds space. First you feel the practice in your own body. Then how it works, your role while someone sounds, and where it fits in your work.
+https://songdance.co/courses/masterclass?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=a-new3_text&{{prefill}}#register
+
+(The prices are already on the pages, in your own currency. No code needed.)
+
+See you in the circle,
+Jacob
+
+P.S. Tonight means the end of Monday, wherever you are.
+
+--
+Three emails about this, the last one on Monday.
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

@@ -179,7 +179,7 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
   import { BUMP_ORDER, bumpOffer, type BumpSlug } from '../../lib/courses/bumps';
   import { FORGIVENESS_PRICE } from '../../lib/courses/forgiveness';
   import { currencyForCountry, formatMoney, isSupportedCurrency, type SupportedCurrency } from '../../lib/workshops/currency';
-  import { launchPromoPercent } from '../../lib/promo';
+  import { sideCoursePromoPercent as launchPromoPercent } from '../../lib/promo';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
   const CURRENCY_LABEL: Record<SupportedCurrency, string> = {

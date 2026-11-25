@@ -12,6 +12,7 @@ import {
   createCheckoutSession,
   createCustomer,
   createSubscriptionCheckoutSession,
+  ensureRepeatingCoupon,
   paypalEnabled,
 } from '../../../lib/registrations/stripe';
 import {
@@ -35,6 +36,7 @@ import {
   MONTHLY_FIRST_MONTH_SLUG,
   livePassMonthlyFirstCents,
   livePassMonthlyRenewalCents,
+  livePassMonthlyPromo,
   livePassLabel,
   livePassOffer,
   livePassSlug,
@@ -327,9 +329,15 @@ async function startMonthly(
   // Charged at 09:00 Brussels on that day.
   const firstChargeMs = startsOn ? businessDayStartMs(startsOn) + 9 * 3_600_000 : null;
   const startsLabel = startsOn ? fmtDay(startsOn) : null;
-  const describe = startsLabel
-    ? `Starts ${startsLabel}: ${formatMoney(firstCents, currency)} the first month, then ${formatMoney(monthlyCents, currency)} a month until cancelled`
+  // The site sale (Black Friday 2026): 20% off the first two months. The order
+  // itself is written as always (one month = the renewal price, the first
+  // month's extra as its row), so every report reads it as a monthly; what the
+  // two sale months really took is at the gateway.
+  const promo = livePassMonthlyPromo(currency);
+  const prices = promo
+    ? `${formatMoney(promo.first_cents, currency)} the first month and ${formatMoney(promo.second_cents, currency)} the second (${promo.percent}% off both), then ${formatMoney(monthlyCents, currency)} a month until cancelled`
     : `${formatMoney(firstCents, currency)} the first month, then ${formatMoney(monthlyCents, currency)} a month until cancelled`;
+  const describe = startsLabel ? `Starts ${startsLabel}: ${prices}` : prices;
 
   const registrationId = await createPendingCourseRegistration(env.DB, {
     email,
@@ -368,7 +376,15 @@ async function startMonthly(
       monthlyAmountMinor: monthlyCents,
       currency,
       installmentCount: 0, // PayPal: total_cycles 0 = renews until cancelled
-      ...(firstChargeMs
+      ...(promo
+        ? {
+            // The sale: the two discounted months are cycles of their own, then
+            // the regular month. No setup fee: the first cycle is the first month.
+            firstCycleMinor: promo.first_cents,
+            secondCycleMinor: promo.second_cents,
+            ...(firstChargeMs ? { startTime: new Date(firstChargeMs).toISOString() } : {}),
+          }
+        : firstChargeMs
         ? {
             // A later start: the first month is a cycle of its own at its full
             // price, billed on that day (a setup fee would be taken today).
@@ -393,7 +409,7 @@ async function startMonthly(
       kind: 'course.checkout.paypal.subscription.created',
       source: 'system',
       external_id: `local-course-pp-${registrationId}-monthly`,
-      payload: { course_registration_id: registrationId, subscription_id: sub.subscriptionId, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, starts_on: startsOn, covered_by: start.coveredBy },
+      payload: { course_registration_id: registrationId, subscription_id: sub.subscriptionId, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, starts_on: startsOn, covered_by: start.coveredBy, ...(promo ? { promo_percent: promo.percent, promo_first_cents: promo.first_cents, promo_second_cents: promo.second_cents } : {}) },
     });
     return json({ checkout_url: sub.approveUrl, course_registration_id: registrationId });
   }
@@ -414,9 +430,36 @@ async function startMonthly(
       tax_class: 'eservice',
     },
   });
+  // The sale on Stripe: a coupon on the subscription, so Stripe takes the
+  // percent off every line of the first two invoices (the first month's extra
+  // included). A coupon's months count from the day it is applied, not from the
+  // first charge, so a later start gets one that lasts the whole months until
+  // that charge plus the two: it then covers exactly the first two charges.
+  let coupon: string | undefined;
+  if (promo) {
+    let waitMonths = 0;
+    if (firstChargeMs) {
+      const d = new Date();
+      for (;;) {
+        d.setUTCMonth(d.getUTCMonth() + 1);
+        if (d.getTime() > firstChargeMs) break;
+        waitMonths += 1;
+      }
+    }
+    const months = waitMonths + promo.months;
+    coupon = `sale-monthly-${promo.percent}pct-${months}m`;
+    await ensureRepeatingCoupon({
+      secretKey: env.STRIPE_SECRET_KEY,
+      id: coupon,
+      name: `${promo.percent}% off the first ${promo.months} months`,
+      percent_off: promo.percent,
+      duration_in_months: months,
+    });
+  }
   const session = await createSubscriptionCheckoutSession({
     secretKey: env.STRIPE_SECRET_KEY,
     customer: cust.id,
+    coupon,
     success_url: `${baseUrl}${successPath}`,
     cancel_url: cancelUrl,
     product_name: label,
@@ -433,7 +476,9 @@ async function startMonthly(
     ...(firstChargeMs
       ? {
           trial_end: Math.floor(firstChargeMs / 1000),
-          submit_message: `Nothing is charged today. Your monthly starts on ${startsLabel}: the first month, ${formatMoney(firstCents, currency)}, is charged that day, then ${formatMoney(monthlyCents, currency)} every month after it until you cancel.`,
+          submit_message: promo
+            ? `Nothing is charged today. Your monthly starts on ${startsLabel}: the first month, ${formatMoney(promo.first_cents, currency)}, is charged that day, the second month is ${formatMoney(promo.second_cents, currency)}, then ${formatMoney(monthlyCents, currency)} every month after it until you cancel.`
+            : `Nothing is charged today. Your monthly starts on ${startsLabel}: the first month, ${formatMoney(firstCents, currency)}, is charged that day, then ${formatMoney(monthlyCents, currency)} every month after it until you cancel.`,
         }
       : {}),
     // The first month's extra, on the first invoice only.
@@ -471,7 +516,7 @@ async function startMonthly(
     kind: 'course.checkout.subscription.created',
     source: 'system',
     external_id: `local-course-${registrationId}-monthly`,
-    payload: { course_registration_id: registrationId, session_id: session.id, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, installments_total: 0, starts_on: startsOn, covered_by: start.coveredBy },
+    payload: { course_registration_id: registrationId, session_id: session.id, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, installments_total: 0, starts_on: startsOn, covered_by: start.coveredBy, ...(promo ? { promo_percent: promo.percent, promo_coupon: coupon } : {}) },
   });
   return json({ checkout_url: session.url, course_registration_id: registrationId });
 }

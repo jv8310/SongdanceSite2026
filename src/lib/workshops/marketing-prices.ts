@@ -21,8 +21,8 @@ import { GRIEF_PRICE } from '../courses/grief';
 import { FORGIVENESS_PRICE } from '../courses/forgiveness';
 import { PRICE_BY_SLUG } from '../courses/journeys';
 import { PRICE as TWELVE_WEEK_PRICE } from '../courses/twelve-week';
-import { getCertOffer } from '../courses/variant';
-import { LAUNCH_PROMO_PERCENT } from '../promo';
+import { LAUNCH_PROMO_PERCENT, PROMO_INCLUDES_SIDE_COURSES } from '../promo';
+import { getCertOffer, certPromoPriceCents } from '../courses/variant';
 
 export type MarketingProduct =
   | 'ticket'
@@ -129,6 +129,10 @@ function formatPromoEur(minor: number, afterStyle: boolean): string {
   return afterStyle ? `${body}€` : `€${body}`;
 }
 
+// What the site sale always covers; the side courses (grief, forgiveness, the
+// journeys) only when the sale says so (PROMO_INCLUDES_SIDE_COURSES).
+const PROMO_PRODUCTS: ReadonlySet<MarketingProduct> = new Set(['ticket', 'masterclass', 'twelve-week', 'cert']);
+
 // Launch-promo (50%-off) labels per currency, computed with the SAME rounding
 // the checkout endpoints use — Math.round(cents * (100 - pct) / 100) — off each
 // product's compare anchor (the list for most, the €1500 sticker for cert), so
@@ -137,11 +141,17 @@ function formatPromoEur(minor: number, afterStyle: boolean): string {
 export function buildMarketingPromoPriceLabels(): Record<MarketingProduct, Record<string, string>> {
   const out = {} as Record<MarketingProduct, Record<string, string>>;
   for (const product of Object.keys(MARKETING_COMPARE_MINOR) as MarketingProduct[]) {
+    // A product the sale leaves out gets no promo label, so PriceSync leaves
+    // its chip at the list price.
+    if (!PROMO_PRODUCTS.has(product) && !PROMO_INCLUDES_SIDE_COURSES) continue;
     const byCur: Record<string, string> = {};
     const anchor = MARKETING_COMPARE_MINOR[product];
     const eurAfter = EUR_COPY_LABEL[product].endsWith('€');
     for (const cur of Object.keys(anchor)) {
-      const promoMinor = Math.round((anchor[cur] * (100 - LAUNCH_PROMO_PERCENT)) / 100);
+      const promoMinor =
+        product === 'cert'
+          ? certPromoPriceCents(anchor[cur])
+          : Math.round((anchor[cur] * (100 - LAUNCH_PROMO_PERCENT)) / 100);
       byCur[cur] = cur === 'EUR' ? formatPromoEur(promoMinor, eurAfter) : formatMoney(promoMinor, cur);
     }
     out[product] = byCur;

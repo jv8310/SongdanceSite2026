@@ -1,0 +1,30 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+"I can't sing." Good. This isn't singing. We say tone, never note. Trained singers sometimes have the harder start.
+
+"Someone will hear me." Your microphone stays off unless you want it on. And soft counts. Soft often counts double.
+
+"What if nothing comes?" Then that is what's there. A closed door has a sound too, and we start with that one.
+
+Nothing here needs you to be ready. The workshop and the masterclass are half price through Monday 30 November.
+
+
+THE WORKSHOP, 50% OFF: EUR 11 instead of EUR 22
+Seventy minutes, live on Zoom: an introduction to Somatic Vocal Healing, a somatic warm-up with live piano, guided sounding, and a first tool for everyday life. Your microphone stays off unless you want it on. Replay included.
+https://songdance.co/workshop?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=a-new2_text&{{prefill}}#register
+
+THE MASTERCLASS, 50% OFF: EUR 22 instead of EUR 44
+A hundred minutes, live on Zoom, for therapists, coaches, bodyworkers, teachers and anyone who holds space. First you feel the practice in your own body. Then how it works, your role while someone sounds, and where it fits in your work.
+https://songdance.co/courses/masterclass?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=a-new2_text&{{prefill}}#register
+
+(The prices are already on the pages, in your own currency. No code needed.)
+
+With love,
+Jacob
+
+P.S. Not sure which of the two is yours? If you come for yourself, the workshop. If people come to you with what they carry, the masterclass.
+
+--
+Three emails about this, the last one on Monday.
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

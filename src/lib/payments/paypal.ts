@@ -443,6 +443,9 @@ export type CreateSubscriptionInput = {
   // deferred: a setup fee would be charged at approval, this is charged with the
   // first cycle on startTime.
   firstCycleMinor?: number;
+  // A second cycle at its own price, after the first (PayPal allows two TRIAL
+  // cycles): the monthly live pass's second sale month. Only with firstCycleMinor.
+  secondCycleMinor?: number;
   // When billing begins (ISO 8601, in the future). Omit for now.
   startTime?: string;
 };
@@ -495,10 +498,31 @@ export async function createSubscription(
               },
             ]
           : []),
+        ...(input.firstCycleMinor && input.firstCycleMinor > 0 && input.secondCycleMinor && input.secondCycleMinor > 0
+          ? [
+              {
+                frequency: { interval_unit: 'MONTH', interval_count: 1 },
+                tenure_type: 'TRIAL',
+                sequence: 2,
+                total_cycles: 1,
+                pricing_scheme: {
+                  fixed_price: {
+                    value: minorToPaypalAmount(input.secondCycleMinor),
+                    currency_code: currency,
+                  },
+                },
+              },
+            ]
+          : []),
         {
           frequency: { interval_unit: 'MONTH', interval_count: 1 },
           tenure_type: 'REGULAR',
-          sequence: input.firstCycleMinor && input.firstCycleMinor > 0 ? 2 : 1,
+          sequence:
+            input.firstCycleMinor && input.firstCycleMinor > 0
+              ? input.secondCycleMinor && input.secondCycleMinor > 0
+                ? 3
+                : 2
+              : 1,
           total_cycles: input.installmentCount, // finite → completes after N; 0 = renews until cancelled
           pricing_scheme: {
             fixed_price: {

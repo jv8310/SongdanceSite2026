@@ -1,6 +1,7 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import { sideCoursePromoPercent } from '../../lib/promo';
 import GuaranteeBadge from '../GuaranteeBadge.astro';
 
 const countries = COUNTRIES;
@@ -16,7 +17,7 @@ const countries = COUNTRIES;
     </p>
 
     <div class="gr-register-card">
-      <LaunchOfferCallout scope="this course" />
+      <LaunchOfferCallout scope="this course" active={sideCoursePromoPercent() > 0} />
       <div class="gr-price">
         <span class="gr-price-strike" data-gr-strike hidden></span>
         <span class="gr-price-amount" data-gr-amount>€99</span>
@@ -130,7 +131,7 @@ const countries = COUNTRIES;
 
 <script>
   import { COUNTRIES } from '../../lib/countries';
-  import { launchPromoPercent } from '../../lib/promo';
+  import { sideCoursePromoPercent as launchPromoPercent } from '../../lib/promo';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
   type Currency =

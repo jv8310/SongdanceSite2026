@@ -10,14 +10,14 @@
 // nav's normal sticky behaviour returns automatically. The charge is gated
 // server-side regardless.
 import {
-  launchPromoActive,
+  launchPromoRenderable,
+  LAUNCH_PROMO_SUBHEAD,
   launchPromoPayload,
   LAUNCH_PROMO_HEADLINE,
-  LAUNCH_PROMO_END_LABEL,
   LAUNCH_PROMO_TAG,
 } from '../lib/promo';
 
-const { endsAtMs } = launchPromoPayload();
+const { startsAtMs, endsAtMs } = launchPromoPayload();
 
 // Server-gate the render on the promo window (belt to the client guard's
 // braces): on the SSR pages this drops the bar from the HTML the instant the
@@ -25,19 +25,24 @@ const { endsAtMs } = launchPromoPayload();
 // statically-built pages a rebuild after the deadline drops it too. The inline
 // guard below still removes it from any already-built/cached HTML served in the
 // gap before a rebuild, so the bar can never outlive the sale on any page.
-const active = launchPromoActive();
+//
+// It is rendered from the build on, also before the sale opens (the static
+// pages are built ahead of it): the guard right under it takes it out of the
+// page again, before anything is painted, whenever the clock is outside the
+// window.
+const active = launchPromoRenderable();
 ---
 
 {active && (
-<aside class="sd-promo" data-sd-promo data-ends={endsAtMs} aria-label="Extended launch sale">
+<aside class="sd-promo" data-sd-promo data-starts={startsAtMs} data-ends={endsAtMs} aria-label={`${LAUNCH_PROMO_TAG} sale`}>
   <a class="sd-promo-inner" href="/courses">
     <span class="sd-promo-tag">{LAUNCH_PROMO_TAG}</span>
     <span class="sd-promo-text">
       <strong>{LAUNCH_PROMO_HEADLINE}</strong>
       <span class="sd-promo-sep">·</span>
-      <span class="sd-promo-sub">half price through {LAUNCH_PROMO_END_LABEL}</span>
+      <span class="sd-promo-sub">{LAUNCH_PROMO_SUBHEAD}</span>
     </span>
-    <span class="sd-promo-cta">Browse courses →</span>
+    <span class="sd-promo-cta">See the courses →</span>
   </a>
 </aside>
 )}
@@ -46,8 +51,10 @@ const active = launchPromoActive();
   (function () {
     var el = document.querySelector('[data-sd-promo]');
     if (!el) return;
+    var starts = Number(el.getAttribute('data-starts'));
     var ends = Number(el.getAttribute('data-ends'));
-    if (ends && Date.now() >= ends) el.remove();
+    var now = Date.now();
+    if ((starts && now < starts) || (ends && now >= ends)) el.remove();
   })();
 </script>
 

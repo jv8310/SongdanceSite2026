@@ -16,6 +16,10 @@
 //   • `cert:…` — the certification course's holders and when their window to
 //     apply closes (`cert:ends-2026`, …), computed here by syncCertTags
 //     (cert-tags.ts) from the same data as the Drip push. Hourly too.
+//   • `bfcm:…` — the Black Friday 2026 sale's segments (`bfcm:workshop`,
+//     `bfcm:12w-ended`, `bfcm:bought`, …), computed by syncBfcmTags
+//     (bfcm-tags.ts). Hourly too, until a week after the sale; at launch it is
+//     what takes everyone who bought since the last email out of the next one.
 //
 // Gated to the tags a broadcast actually uses (Jacob's "IF these are used"): a
 // broadcast that references neither is a no-op, so an unrelated launch never
@@ -28,6 +32,7 @@ import { syncInDripTag, IN_DRIP_TAG } from '../contacts/mirror';
 import { logEventSafe } from '../registrations/db';
 import { syncAppTags, usesAppTags, type AppTagSyncResult } from './app-tags';
 import { syncCertTags, usesCertTags, type CertTagSyncResult } from './cert-tags';
+import { syncBfcmTags, usesBfcmTags, type BfcmTagSyncResult } from './bfcm-tags';
 
 export type SegmentRefreshResult = {
   // Rows newly tagged this run (undefined if that refresher didn't apply).
@@ -35,6 +40,7 @@ export type SegmentRefreshResult = {
   inDripAdded?: number; // in-drip
   appTags?: AppTagSyncResult; // app:… (the app's answer, or why there was none)
   certTags?: CertTagSyncResult; // cert:… (never throws: a failure is its answer)
+  bfcmTags?: BfcmTagSyncResult; // bfcm:… (the same)
 };
 
 // `tags` is the normalized (lowercased, trimmed) set of a broadcast's include +
@@ -55,6 +61,10 @@ export async function refreshBroadcastSegments(
 
   if (usesCertTags(tags)) {
     out.certTags = await syncCertTags(db);
+  }
+
+  if (usesBfcmTags(tags)) {
+    out.bfcmTags = await syncBfcmTags(db);
   }
 
   if (tags.has(PAST_WORKSHOP_SEGMENT_TAG)) {

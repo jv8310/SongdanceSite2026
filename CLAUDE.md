@@ -648,6 +648,60 @@ counts, nothing manufactured), not governed by the copy book.
   REJOIN until the session's real end (70-min default / 100-min masterclass from
   `ends_at_utc`) + 10-min grace — a connectivity drop never locks them out.
 
+## Black Friday to Cyber Monday 2026 — the site sale, its segments, its emails
+
+One sale, **Friday 27 November 00:00 Brussels until Tuesday 1 December 09:00 Brussels**
+(= the end of Cyber Monday on the US west coast; every string says "through Monday 30
+November"). Jacob, 25 Nov 2026.
+
+- **The switch is [`src/lib/promo.ts`](src/lib/promo.ts)**, the launch sale's module
+  re-aimed (its exports still say "launch"; they mean "the site sale that is live now"). It
+  now has a **start** as well as an end, so it can be deployed days ahead: the server starts
+  and stops discounting by the clock, the SSR sale pages follow, and the statically built
+  pages (home, `/courses`) ship the banner and the price data and show them only inside the
+  window (`launchPromoRenderable`, `window.__SD_PROMO__.active`).
+- **What it covers**: 50% off the workshop and masterclass seat (never the bump), the
+  12-week course, the certification course and the path (certification floored to a round 5,
+  `certPromoPriceCents`: EUR €797 → **€395**, path €1,347 → **€670**, 12-week **€275**,
+  seats **€11 / €22**); **20%** off the live passes of 1, 3 and 6 months
+  (`livePassPromoPercent`, in `livePassPriceCents` / `livePassOffer`: €41 / €105 / €187; the
+  add-on follows the pass). **The monthly: 20% off its first two months** (`livePassMonthlyPromo`:
+  €41.60, then €35.20, then €44), for a monthly agreed during the sale, also one that starts later.
+  Stripe takes it as a coupon on the subscription (`ensureRepeatingCoupon`, id
+  `sale-monthly-20pct-<N>m`; a coupon's months count from the day it is applied, so a later start
+  gets the whole months until its first charge plus two), PayPal as two TRIAL cycles before the
+  regular one (`secondCycleMinor`). The order row is written like any monthly's (€44 a month + the
+  €8 first-month row), so **the money reports read such a monthly about €19 too high over its first
+  two months**; the sale is on the checkout event (`promo_percent`), which `monthlySaleForOrder`
+  reads for the confirmation emails and the manage page. **Not** the Grief Course, the
+  Forgiveness Course, the journeys, albums, sessions or retreats
+  (`PROMO_INCLUDES_SIDE_COURSES = false`, `sideCoursePromoPercent`, which their checkouts,
+  forms, the `/courses` chips and the Meta feed all read). A `?discount` / `?adiscount` link
+  still wins on the courses; the share-with-a-friend `?discount=50` still stacks on a seat.
+  The after-workshop emails quote the sale instead of the 20% while it runs
+  (`postWorkshopEmailOffer`, named by `LAUNCH_PROMO_SALE_NAME`).
+- **Who gets which email: [`bfcm-tags.ts`](src/lib/broadcasts/bfcm-tags.ts)** writes `bfcm:`
+  tags onto the contact list (hourly until a week after the sale, and at every launch of a
+  broadcast naming one). A person's segment is where they stood **when the sale opened**, so
+  nobody changes segment mid-sale; whoever buys or registers during it gets `bfcm:bought`,
+  which every email excludes. One segment each, first that fits: `bfcm:cert` (holds the
+  certification: no email), `bfcm:recent` (a live pass paid in the 30 days before: no email),
+  `bfcm:12w-early` (12-week course, week 1 to 6), `bfcm:12w-late` (week 7 to 12),
+  `bfcm:12w-ended` (over, or bought before the site so undated), `bfcm:german` (German course
+  or workshop only: no email), `bfcm:workshop` (a seat on the site or the Drip years' workshop
+  tags, no course). All of them carry `bfcm:known`; the first segment is **the whole list
+  minus `bfcm:known`** (so buyers of the other courses only are in it).
+- **The emails**: five audiences × three (first notice Fri 27, reminder Sat 28, last chance
+  Mon 30; Sunday is left to the Forgiveness run-up), written in
+  [`docs/emails/bfcm-2026/build.mjs`](docs/emails/bfcm-2026/build.mjs), which also generates
+  **migration 0102** seeding the fifteen as drafts ("BFCM A1 …" to "BFCM E3 …"). A = workshop
+  + masterclass; B = 12-week + path; C and D = certification alone + live pass; E =
+  certification alone. Links carry `{{prefill}}` and no discount (the price is on the page).
+  Sent from the site only (no Drip twin, no `in-drip` exclusion). To change words after the
+  drafts exist: edit the script, run it, save the draft again (`broadcast_save`).
+- **After the sale** nothing needs switching off. To run another sale: move the two
+  timestamps, the label, the tag and the scope in `promo.ts`.
+
 ## Course checkout card — one look for the certification and the 12-week form
 
 The priced form on `/courses/certification` (`CCRegister`) and `/courses/12-week`
