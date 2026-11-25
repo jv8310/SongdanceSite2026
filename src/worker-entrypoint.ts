@@ -211,7 +211,7 @@ export class AppBridge extends WorkerEntrypoint<Env> {
     return broadcastTagsForApp(this.env, input);
   }
 
-  broadcastAudience(input: { includeTags?: string[] | string; excludeTags?: string[] | string; field?: string; fieldValue?: string; refresh?: boolean }) {
+  broadcastAudience(input: { includeTags?: string[] | string; excludeTags?: string[] | string; field?: string; fieldValue?: string; engagedDays?: number | null; refresh?: boolean }) {
     return broadcastAudienceForApp(this.env, input);
   }
 

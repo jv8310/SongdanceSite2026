@@ -43,9 +43,10 @@ const audience = await countAudience(env.DB, {
   excludeTags: b.audience_exclude_tags,
   field: b.audience_field,
   fieldValue: b.audience_field_value,
+  engagedDays: b.audience_engaged_days ?? null,
 });
 const tags = isEditable ? await availableTags(env.DB, 1000) : [];
-const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field);
+const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field || b.audience_engaged_days);
 // Does this broadcast target a segment that's recomputed at launch (and can be
 // refreshed by hand)? Gate the "Refresh segments" control on it — matches
 // refreshBroadcastSegments' own gating.
@@ -188,7 +189,8 @@ const statusLabel: Record<string, string> = {
             <p class="bc-refresh-seg">
               <button id="bc-refresh-seg" class="adm-btn adm-btn--ghost" type="button"
                 data-include={b.audience_include_tags ?? ''} data-exclude={b.audience_exclude_tags ?? ''}
-                data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''}>↻ Refresh segments &amp; recount</button>
+                data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''}
+                data-engaged-days={b.audience_engaged_days ?? ''}>↻ Refresh segments &amp; recount</button>
               <span id="bc-refresh-msg" class="bc-msg"></span>
               <br /><small class="bc-muted">Rebuilds <code>workshop-passed-nonbuyer</code>, re-syncs the <code>in-drip</code> marker from live registrations/purchases and asks the member app again for its <code>app:</code> tags, then recounts. This also runs automatically the moment you launch.</small>
             </p>
@@ -435,6 +437,8 @@ const statusLabel: Record<string, string> = {
                 <label class="bc-field"><span>Field filter</span><input name="audience_field" value={b.audience_field ?? ''} /></label>
                 <label class="bc-field"><span>equals</span><input name="audience_field_value" value={b.audience_field_value ?? ''} /></label>
               </div>
+              <label class="bc-field"><span>Only people who opened or clicked an email in the last … days <em>(blank = no such filter)</em></span><input name="audience_engaged_days" type="number" min="1" max="730" step="1" placeholder="e.g. 30" value={b.audience_engaged_days ?? ''} /></label>
+              {!isDraft && <p class="bc-hint">The queue of this broadcast is already made: a change here only applies to people added by a later launch, it takes nobody out.</p>}
               {tags.length > 0 && (
                 <div class="bc-tagcloud">
                   <span class="bc-tagcloud-label">Your {tags.length.toLocaleString()} tags — click to include, or type any tag name into the fields above.</span>
@@ -460,6 +464,7 @@ const statusLabel: Record<string, string> = {
               b.audience_include_tags ? `include: ${b.audience_include_tags}` : null,
               b.audience_exclude_tags ? `exclude: ${b.audience_exclude_tags}` : null,
               b.audience_field ? `${b.audience_field} = ${b.audience_field_value ?? ''}` : null,
+              b.audience_engaged_days ? `opened or clicked in the last ${b.audience_engaged_days} days` : null,
             ].filter(Boolean).join(' · ') : 'Whole list'} <span class="bc-muted">({audience.toLocaleString()} contacts)</span></dd>
             {b.format !== 'html' && <><dt>Heading</dt><dd>{b.heading}</dd></>}
             <dt>Body</dt>
@@ -638,6 +643,7 @@ const statusLabel: Record<string, string> = {
           audience_exclude_tags: fd.get('audience_exclude_tags'),
           audience_field: fd.get('audience_field'),
           audience_field_value: fd.get('audience_field_value'),
+          audience_engaged_days: fd.get('audience_engaged_days'),
         };
         const any = Object.values(payload).some((v) => (v || '').toString().trim());
         try {
@@ -743,6 +749,7 @@ const statusLabel: Record<string, string> = {
               audience_exclude_tags: btn.dataset.exclude || '',
               audience_field: btn.dataset.field || '',
               audience_field_value: btn.dataset.fieldValue || '',
+              audience_engaged_days: btn.dataset.engagedDays || '',
             }),
           });
           const data = await res.json();

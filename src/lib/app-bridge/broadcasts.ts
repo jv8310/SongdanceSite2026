@@ -28,6 +28,7 @@ import {
   createBroadcast,
   getBroadcast,
   launchBroadcast,
+  normalizeEngagedDays,
   listBroadcasts,
   pauseBroadcast,
   pendingCount,
@@ -98,12 +99,13 @@ function tagField(v: unknown): string | null | undefined {
   return tags.length ? tags.join(', ') : null;
 }
 
-function criteriaOf(b: Pick<Broadcast, 'audience_include_tags' | 'audience_exclude_tags' | 'audience_field' | 'audience_field_value'>): AudienceCriteria {
+function criteriaOf(b: Pick<Broadcast, 'audience_include_tags' | 'audience_exclude_tags' | 'audience_field' | 'audience_field_value' | 'audience_engaged_days'>): AudienceCriteria {
   return {
     includeTags: b.audience_include_tags,
     excludeTags: b.audience_exclude_tags,
     field: b.audience_field,
     fieldValue: b.audience_field_value,
+    engagedDays: b.audience_engaged_days ?? null,
   };
 }
 
@@ -139,6 +141,8 @@ function summary(env: BridgeEnv, b: Broadcast) {
       excludeTags: splitTags(b.audience_exclude_tags),
       field: b.audience_field,
       fieldValue: b.audience_field_value,
+      // Only people who opened or clicked an email in the last N days.
+      engagedDays: b.audience_engaged_days ?? null,
     },
     window: { startHour: b.window_start_hour, endHour: b.window_end_hour, urgent: !!b.urgent },
     stopAt: b.stop_at,
@@ -194,13 +198,14 @@ export async function broadcastTagsForApp(env: BridgeEnv, input: { query?: unkno
 
 export async function broadcastAudienceForApp(
   env: BridgeEnv,
-  input: { includeTags?: unknown; excludeTags?: unknown; field?: unknown; fieldValue?: unknown; refresh?: unknown },
+  input: { includeTags?: unknown; excludeTags?: unknown; field?: unknown; fieldValue?: unknown; engagedDays?: unknown; refresh?: unknown },
 ) {
   const c: AudienceCriteria = {
     includeTags: tagField(input?.includeTags) ?? null,
     excludeTags: tagField(input?.excludeTags) ?? null,
     field: String(input?.field ?? '').trim() || null,
     fieldValue: String(input?.fieldValue ?? '').trim() || null,
+    engagedDays: normalizeEngagedDays(input?.engagedDays),
   };
   let refreshed: SegmentRefreshResult | null = null;
   if (input?.refresh === true) refreshed = await refreshBroadcastSegments(env.DB, tagsIn(c), env);
@@ -268,6 +273,8 @@ export type SaveBroadcastInput = {
   excludeTags?: string[] | string | null;
   field?: string | null;
   fieldValue?: string | null;
+  // Only people who opened or clicked an email in the last N days; null clears it.
+  engagedDays?: number | null;
   windowStartHour?: number;
   windowEndHour?: number;
   actor?: string;
@@ -336,6 +343,7 @@ export async function saveBroadcastFromApp(env: BridgeEnv, input: SaveBroadcastI
     audience_exclude_tags: pick(tagField(p.excludeTags), existing?.audience_exclude_tags ?? null),
     audience_field: pick(str(p.field), existing?.audience_field ?? null),
     audience_field_value: pick(str(p.fieldValue), existing?.audience_field_value ?? null),
+    audience_engaged_days: p.engagedDays === undefined ? (existing?.audience_engaged_days ?? null) : normalizeEngagedDays(p.engagedDays),
   };
   if (format === 'html' && !fields.heading) fields.heading = fields.name;
   if (!fields.name || !fields.subject || !fields.heading || !fields.body) {

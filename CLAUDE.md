@@ -2998,6 +2998,16 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   live "X contacts match" estimate (`/api/admin/broadcasts/audience`); the launch
   snapshot applies the same `audienceWhere` criteria. Blank = the whole sendable
   list. (Tag fields are free text too — any tag works, listed or not.)
+  - **Opened or clicked in the last N days** (25 Nov 2026, `audience_engaged_days`,
+    migration 0103; `engagedDays` in `AudienceCriteria` and on Claude's
+    `broadcast_audience` / `broadcast_save`): narrows whatever the tags give (AND) to
+    contacts with an open or a click on **any** email in `email_sends` (broadcasts,
+    lifecycle, transactional) whose latest one falls inside the window, counted back from
+    the moment of the count or the launch snapshot. Blank = no filter, 1 to 730 days.
+    Opens include Apple Mail's automatic ones, so it is generous. Only mail the site sent
+    counts: Drip's opens are not here. The column is written by its own guarded statement
+    (`writeEngagedDays`), so saving works on a preview before the migration (the setting
+    is then not kept).
   - **Everyone in the app** (`app:` tags, October 2026,
     [`src/lib/broadcasts/app-tags.ts`](src/lib/broadcasts/app-tags.ts)): the site asks the
     member app (`APP_ADMIN` → `broadcastMembers`, the app's `lib/broadcast-tags.ts`, where the

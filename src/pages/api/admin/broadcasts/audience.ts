@@ -1,4 +1,4 @@
-// POST { includeTags?, excludeTags?, field?, fieldValue?, refresh? } → { count }
+// POST { includeTags?, excludeTags?, field?, fieldValue?, engagedDays?, refresh? } → { count }
 // of contacts matching the audience criteria (minus suppressions). Powers the
 // live "X contacts match" estimate on the compose page. With `refresh: true`
 // (the "Refresh segments" button, never the keystroke estimate) it first
@@ -8,7 +8,7 @@
 
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
-import { countAudience, splitTags } from '../../../../lib/broadcasts/db';
+import { countAudience, normalizeEngagedDays, splitTags } from '../../../../lib/broadcasts/db';
 import { refreshBroadcastSegments } from '../../../../lib/broadcasts/segment-refresh';
 
 export const prerender = false;
@@ -31,6 +31,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     excludeTags: str(p.audience_exclude_tags ?? p.excludeTags),
     field: str(p.audience_field ?? p.field),
     fieldValue: str(p.audience_field_value ?? p.fieldValue),
+    engagedDays: normalizeEngagedDays(p.audience_engaged_days ?? p.engagedDays),
   };
 
   // Opt-in: only the explicit "refresh" action rebuilds segments — the live
