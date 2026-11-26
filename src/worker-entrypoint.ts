@@ -36,6 +36,8 @@ import { runSessionCron } from './lib/sessions/cron';
 import { syncAppTags } from './lib/broadcasts/app-tags';
 import { retryCertAppSync } from './lib/certification/app-sync';
 import { syncCertTags } from './lib/broadcasts/cert-tags';
+import { runDripContactSyncCron } from './lib/contacts/drip-sync';
+import { dripConfig } from './lib/orders/drip-order';
 import { syncBfcmTagsOnSchedule } from './lib/broadcasts/bfcm-tags';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runContactTagBackfill } from './lib/contacts/tag-backfill';
@@ -421,6 +423,22 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[certification/app-sync] retry failed', err);
+        }),
+    );
+
+    // Drip → the contact list: everyone Drip holds is a contact here, and
+    // Drip's unsubscribes are do-not-mail here (contacts/drip-sync.ts). A few
+    // pages per tick; a new run starts once the last finished a day ago.
+    ctx.waitUntil(
+      runDripContactSyncCron(env.DB, dripConfig(env))
+        .then((r) => {
+          if (r && !r.ok) console.log(`[contacts/drip-sync] ${r.message}`);
+          else if (r && r.done && r.state.last) {
+            console.log(`[contacts/drip-sync] done: active=${r.state.last.activeSeen} created=${r.state.last.created} suppressed+=${r.state.last.suppressionsAdded}`);
+          }
+        })
+        .catch((err) => {
+          console.error('[contacts/drip-sync] failed', err);
         }),
     );
 

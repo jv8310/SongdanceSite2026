@@ -11,6 +11,9 @@ import {
   broadcastStats,
   broadcastEmailType,
   countAudience,
+  broadcastCriteria,
+  describeAudience,
+  splitTags,
   availableTags,
   cleaningCounts,
   pendingByTimezone,
@@ -38,26 +41,15 @@ const isEditable = b.status !== 'done';
 const counts = await recipientCounts(env.DB, b.id);
 const stats = await broadcastStats(env.DB, broadcastEmailType(b.id));
 // The audience this broadcast targets right now (criteria minus suppressions).
-const audience = await countAudience(env.DB, {
-  includeTags: b.audience_include_tags,
-  excludeTags: b.audience_exclude_tags,
-  field: b.audience_field,
-  fieldValue: b.audience_field_value,
-  engagedDays: b.audience_engaged_days ?? null,
-});
+const savedCriteria = broadcastCriteria(b);
+const audience = await countAudience(env.DB, savedCriteria);
+const audienceSummary = describeAudience(savedCriteria);
+const excludesInDrip = splitTags(b.audience_exclude_tags).includes('in-drip');
 const tags = isEditable ? await availableTags(env.DB, 1000) : [];
 const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field || b.audience_engaged_days);
 // Does this broadcast target a segment that's recomputed at launch (and can be
 // refreshed by hand)? Gate the "Refresh segments" control on it — matches
 // refreshBroadcastSegments' own gating.
-const audienceTags = [
-  ...(b.audience_include_tags ?? '').split(','),
-  ...(b.audience_exclude_tags ?? '').split(','),
-].map((t) => t.trim().toLowerCase());
-const usesRefreshableSegment =
-  audienceTags.includes('workshop-passed-nonbuyer') ||
-  audienceTags.includes('in-drip') ||
-  audienceTags.some((t) => t.startsWith('app:'));
 const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
 const dripHtml = dripHtmlForBroadcast(b);
 // A human label for an armed auto-stop, formatted in the business timezone so
@@ -179,22 +171,26 @@ const statusLabel: Record<string, string> = {
       {isDraft ? (
         <div class="bc-launch">
           <p>
-            This will queue <strong id="bc-audience-count">{audience.toLocaleString()}</strong> contacts
-            ({hasAudienceFilter ? 'matching your audience filter' : 'the whole list'}, minus
-            unsubscribes). They'll be sent over the coming days, only inside each
+            This will queue <strong id="bc-audience-count">{audience.toLocaleString()}</strong> contacts:
+            <strong id="bc-audience-summary">{audienceSummary}</strong> (minus
+            unsubscribes). That is the audience as last saved. They'll be sent over the
+            coming days, only inside each
             recipient's local {b.window_start_hour}:00–{b.window_end_hour}:00, and
             the send auto-pauses if bounces or spam complaints spike.
           </p>
-          {usesRefreshableSegment && (
-            <p class="bc-refresh-seg">
-              <button id="bc-refresh-seg" class="adm-btn adm-btn--ghost" type="button"
-                data-include={b.audience_include_tags ?? ''} data-exclude={b.audience_exclude_tags ?? ''}
-                data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''}
-                data-engaged-days={b.audience_engaged_days ?? ''}>↻ Refresh segments &amp; recount</button>
-              <span id="bc-refresh-msg" class="bc-msg"></span>
-              <br /><small class="bc-muted">Rebuilds <code>workshop-passed-nonbuyer</code>, re-syncs the <code>in-drip</code> marker from live registrations/purchases and asks the member app again for its <code>app:</code> tags, then recounts. This also runs automatically the moment you launch.</small>
-            </p>
-          )}
+          <p id="bc-audience-unsaved" class="bc-warn" hidden>
+            The Audience box below has changes that are not saved. A launch uses the
+            saved audience above. Press “Save changes” first.
+          </p>
+          <p id="bc-audience-indrip" class="bc-warn" hidden={!excludesInDrip}>
+            This audience leaves out everyone tagged <code>in-drip</code> (your buyers
+            and registrants). That is only right when Drip sends them its own copy.
+          </p>
+          <p class="bc-refresh-seg">
+            <button id="bc-refresh-seg" class="adm-btn adm-btn--ghost" type="button" data-id={b.id}>↻ Refresh segments &amp; recount</button>
+            <span id="bc-refresh-msg" class="bc-msg"></span>
+            <br /><small class="bc-muted">Rebuilds the computed tags this audience names (<code>workshop-passed-nonbuyer</code>, <code>in-drip</code>, <code>app:</code>, <code>cert:</code>, <code>bfcm:</code>) from live data, then recounts the saved audience. This also runs automatically the moment you launch.</small>
+          </p>
           {b.scheduled_at && (
             <p class="bc-scheduled-note">
               ⏰ <strong>Scheduled</strong> — this broadcast will auto-launch at
@@ -593,6 +589,7 @@ const statusLabel: Record<string, string> = {
     .bc-clean strong { font-size: 13px; }
     .bc-clean p { font-size: 13px; color: #6f5f6d; line-height: 1.6; margin: 6px 0 10px; max-width: 70ch; }
     .bc-clean a { color: #a14826; }
+    .bc-warn { background: #fff4e0; border: 1px solid #e0a94a; border-radius: 8px; padding: 10px 14px; color: #5a3a08; font-size: 14px; }
     .bc-clean-tags { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(161,72,38,0.15); }
     .bc-clean-tags label { display: block; font-size: 13px; color: #4a3848; margin-bottom: 6px; }
     .bc-clean-tags label em { color: #b6a8b4; font-style: normal; }
@@ -604,6 +601,31 @@ const statusLabel: Record<string, string> = {
     const editForm = document.getElementById('bc-edit');
     const previewFrame = document.getElementById('bc-preview');
     let formDirty = false; // pause the live stats refresh while the user is editing
+
+    // The Send box always states the SAVED audience, asked of the server by the
+    // broadcast's id: the count, the audience in words, the in-drip warning.
+    const BROADCAST_ID = Number((document.getElementById('bc-launch') || {}).dataset?.id || 0);
+    const AUD_FIELDS = ['audience_include_tags', 'audience_exclude_tags', 'audience_field', 'audience_field_value', 'audience_engaged_days'];
+    let audienceDirty = false;
+    let audSaved = '';
+    let markAudience = () => {};
+    let audienceSavedNow = () => {};
+    async function refreshSendBox(refresh) {
+      if (!BROADCAST_ID) return null;
+      const res = await fetch('/api/admin/broadcasts/audience', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: BROADCAST_ID, refresh: !!refresh }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Count failed');
+      const n = document.getElementById('bc-audience-count');
+      if (n) n.textContent = Number(data.count).toLocaleString();
+      const s = document.getElementById('bc-audience-summary');
+      if (s) s.textContent = data.summary;
+      const d = document.getElementById('bc-audience-indrip');
+      if (d) d.hidden = !data.excludesInDrip;
+      return data;
+    }
 
     // Compose: format toggle + live preview.
     if (editForm) {
@@ -655,6 +677,16 @@ const statusLabel: Record<string, string> = {
         } catch (_) { /* best-effort */ }
       }
       const scheduleAud = () => { clearTimeout(audTimer); audTimer = setTimeout(updateAudience, 400); };
+      // Does the Audience box differ from what was last saved? The Send box
+      // says so, and a launch waits for the save.
+      const audKey = () => AUD_FIELDS.map((n) => String(new FormData(editForm).get(n) || '').trim()).join('\u0001');
+      audSaved = audKey();
+      markAudience = () => {
+        audienceDirty = audKey() !== audSaved;
+        const w = document.getElementById('bc-audience-unsaved');
+        if (w) w.hidden = !audienceDirty;
+      };
+      audienceSavedNow = () => { audSaved = audKey(); markAudience(); };
       document.querySelectorAll('.bc-tagchip').forEach((chip) => {
         chip.addEventListener('click', () => {
           const tag = chip.dataset.tag;
@@ -662,6 +694,7 @@ const statusLabel: Record<string, string> = {
           if (!cur.includes(tag)) cur.push(tag);
           audInclude.value = cur.join(', ');
           updateAudience();
+          markAudience();
         });
       });
 
@@ -676,7 +709,7 @@ const statusLabel: Record<string, string> = {
       });
 
       formatSel.addEventListener('change', () => { applyFormat(); schedule(); });
-      editForm.addEventListener('input', () => { formDirty = true; schedule(); scheduleAud(); });
+      editForm.addEventListener('input', () => { formDirty = true; schedule(); scheduleAud(); markAudience(); });
       applyFormat();
       updateAudience();
 
@@ -693,6 +726,8 @@ const statusLabel: Record<string, string> = {
           formDirty = false;
           saveMsg.textContent = 'Saved ✓ — applies to recipients not yet sent.';
           updatePreview();
+          audienceSavedNow();
+          await refreshSendBox(false);
         } catch (err) { saveMsg.textContent = 'Failed: ' + (err.message || err); }
       });
     }
@@ -741,21 +776,7 @@ const statusLabel: Record<string, string> = {
         btn.textContent = 'Refreshing…';
         if (msg) msg.textContent = '';
         try {
-          const res = await fetch('/api/admin/broadcasts/audience', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              refresh: true,
-              audience_include_tags: btn.dataset.include || '',
-              audience_exclude_tags: btn.dataset.exclude || '',
-              audience_field: btn.dataset.field || '',
-              audience_field_value: btn.dataset.fieldValue || '',
-              audience_engaged_days: btn.dataset.engagedDays || '',
-            }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Refresh failed');
-          const el = document.getElementById('bc-audience-count');
-          if (el) el.textContent = Number(data.count).toLocaleString();
+          const data = await refreshSendBox(true);
           const app = data.refreshed && data.refreshed.appTags;
           const appNote = !app ? '' : app.ok ? ` App tags: ${Number(app.members).toLocaleString()} members.` : ` App tags not refreshed: ${app.message}`;
           if (msg) msg.textContent = `Segments refreshed — ${Number(data.count).toLocaleString()} contacts would be queued now.${appNote}`;
@@ -774,7 +795,15 @@ const statusLabel: Record<string, string> = {
       if (!btn) return;
       btn.addEventListener('click', async () => {
         const m = document.getElementById('bc-launch-msg');
-        if (!confirm('Launch this broadcast to the full list? It will send gradually over the coming days.')) return;
+        if (audienceDirty) {
+          m.textContent = 'The Audience box has unsaved changes. Save them first (or reload to drop them).';
+          return;
+        }
+        // Ask the server what the saved audience comes to at this moment, and
+        // put that figure in the question.
+        let now;
+        try { now = await refreshSendBox(false); } catch (err) { m.textContent = 'Could not count the audience: ' + (err.message || err); return; }
+        if (!confirm(`Launch this broadcast to ${Number(now.count).toLocaleString()} contacts?\n\n${now.summary}\n\nComputed tags are rebuilt at launch, so the final figure can differ slightly. It sends gradually over the coming days.`)) return;
         btn.disabled = true;
         m.textContent = 'Launching…';
         try {
@@ -887,6 +916,7 @@ const statusLabel: Record<string, string> = {
         const d = new Date(v);
         if (isNaN(d.getTime())) { msg.textContent = 'That time is not valid.'; return; }
         if (d.getTime() <= Date.now()) { msg.textContent = 'Pick a time in the future.'; return; }
+        if (audienceDirty) { msg.textContent = 'The Audience box has unsaved changes. Save them first (or reload to drop them).'; return; }
         setBtn.disabled = true; msg.textContent = 'Saving…';
         try { await post({ id: Number(setBtn.dataset.id), action: 'schedule', scheduled_at: d.toISOString() }); window.location.reload(); }
         catch (err) { msg.textContent = 'Failed: ' + (err.message || err); setBtn.disabled = false; }

@@ -3049,6 +3049,29 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
     counts: Drip's opens are not here. The column is written by its own guarded statement
     (`writeEngagedDays`), so saving works on a preview before the migration (the setting
     is then not kept).
+  - **The Send box states the saved audience** (25 Nov 2026): on a draft's page the count,
+    the audience in words (`describeAudience`) and the `in-drip` warning are asked of the
+    server by the broadcast's id (`/api/admin/broadcasts/audience` with `{ id }`), again
+    after every save and before the launch question, which names the figure. The page used
+    to keep the audience it was rendered with, so after a save the Send box and "Refresh
+    segments" still counted the old one while a launch used the new. Unsaved changes in the
+    Audience box show a warning there and hold back Launch and Schedule.
+  - **`in-drip` is not "everyone in Drip"**: it marks only people who paid or registered
+    on the site (about 2,200; Drip itself holds about 12,500 active subscribers, 25 Nov
+    2026). **Jacob no longer sends marketing from Drip (25 Nov 2026), so a broadcast should
+    not exclude `in-drip`**: it would skip every site buyer. The page warns when one does.
+  - **Everyone in Drip is on this list** (25 Nov 2026,
+    [`src/lib/contacts/drip-sync.ts`](src/lib/contacts/drip-sync.ts), `/admin/contacts` →
+    "Everyone in Drip, on this list", `/api/admin/contacts/drip-sync`): every **active,
+    deliverable** Drip subscriber becomes a contact when missing (source `drip`; an existing
+    one only gets a missing name / timezone / country, and Drip's tags **added**, never
+    replaced, never under `app:` / `cert:` / `bfcm:` / `in-drip`); everyone **unsubscribed**
+    or flagged **undeliverable** in Drip goes on `email_suppressions` (source `drip`). It
+    never deletes and never lifts a suppression. Resumable by page (`workshop_config`
+    `drip_contact_sync`): the hourly cron reads 4 pages of 1,000 per tick and starts a new
+    run a day after the last finished; the button drives a run to its end. The panel says
+    how many Drip-active people were missing and how many are active in Drip but
+    do-not-mail here, by reason.
   - **Everyone in the app** (`app:` tags, October 2026,
     [`src/lib/broadcasts/app-tags.ts`](src/lib/broadcasts/app-tags.ts)): the site asks the
     member app (`APP_ADMIN` → `broadcastMembers`, the app's `lib/broadcast-tags.ts`, where the
