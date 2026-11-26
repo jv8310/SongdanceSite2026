@@ -1,0 +1,118 @@
+---
+// The round discount seal in a sale page's hero (Black Friday 2026). It says a
+// percent and what it is off, never a price: the pages sell in many currencies.
+// Rendered like PromoBanner: from the build on, and its inline guard takes it
+// out of the page whenever the clock is outside the sale window. The parent
+// hero must be positioned (every hero that uses it is `position: relative`).
+import {
+  launchPromoRenderable,
+  launchPromoPayload,
+  LAUNCH_PROMO_PERCENT,
+  LAUNCH_PROMO_END_LABEL,
+  LAUNCH_PROMO_TAG,
+} from '../../lib/promo';
+
+interface Props {
+  /** Defaults to the sale's percent; the live pass passes its own. */
+  percent?: number;
+  /** What it is off, a word or two: "your seat", "this course". */
+  what: string;
+  /** Where a tap goes. */
+  href?: string;
+}
+const { percent = LAUNCH_PROMO_PERCENT, what, href = '#register' } = Astro.props;
+const { startsAtMs, endsAtMs } = launchPromoPayload();
+const active = launchPromoRenderable() && percent > 0;
+---
+
+{active && (
+<a
+  class="sd-seal"
+  href={href}
+  data-sd-seal
+  data-starts={startsAtMs}
+  data-ends={endsAtMs}
+  aria-label={`${LAUNCH_PROMO_TAG}: ${percent}% off ${what}, through ${LAUNCH_PROMO_END_LABEL}`}
+>
+  <span class="sd-seal-k">{LAUNCH_PROMO_TAG}</span>
+  <span class="sd-seal-n">{percent}<sup>%</sup></span>
+  <span class="sd-seal-o">off</span>
+  <span class="sd-seal-w">{what}</span>
+</a>
+)}
+
+<script is:inline>
+  (function () {
+    var now = Date.now();
+    document.querySelectorAll('[data-sd-seal]').forEach(function (el) {
+      var starts = Number(el.getAttribute('data-starts'));
+      var ends = Number(el.getAttribute('data-ends'));
+      if ((starts && now < starts) || (ends && now >= ends)) el.remove();
+    });
+  })();
+</script>
+
+<style is:global>
+  .sd-seal {
+    position: absolute;
+    z-index: 5;
+    right: clamp(16px, 6vw, 96px);
+    top: clamp(84px, 14vh, 130px);
+    width: 168px;
+    height: 168px;
+    border-radius: 50%;
+    background: #c9603a;
+    color: #f4ecdf;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transform: rotate(-8deg);
+    box-shadow: 0 14px 36px rgba(15, 8, 14, 0.4);
+    text-decoration: none;
+    transition: transform 0.25s ease;
+  }
+  .sd-seal:hover { transform: rotate(-4deg) scale(1.04); }
+  .sd-seal::before {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(244, 236, 223, 0.6);
+  }
+  .sd-seal-k {
+    font: 600 9px/1 var(--font-body, Figtree, sans-serif);
+    letter-spacing: 2.4px;
+    text-transform: uppercase;
+    opacity: 0.92;
+    margin-bottom: 5px;
+  }
+  .sd-seal-n {
+    font: 400 60px/0.95 var(--font-display, Spectral, serif);
+    letter-spacing: -1px;
+  }
+  .sd-seal-n sup { font-size: 0.5em; vertical-align: 0.62em; margin-left: 1px; }
+  .sd-seal-o {
+    font: 600 11px/1 var(--font-body, Figtree, sans-serif);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+  .sd-seal-w {
+    font: italic 500 17px/1.1 var(--font-lyric, 'Cormorant Garamond', serif);
+    margin-top: 4px;
+    color: #f7e4d4;
+  }
+  .lp-hero { position: relative; }
+  .lp-hero .sd-seal { top: -18px; right: -14px; }
+  @media (max-width: 700px) {
+    .sd-seal { width: 116px; height: 116px; right: 12px; top: 76px; }
+    .sd-seal::before { inset: 5px; }
+    .sd-seal-k { font-size: 7px; letter-spacing: 1.6px; margin-bottom: 3px; }
+    .sd-seal-n { font-size: 40px; }
+    .sd-seal-o { font-size: 8.5px; margin-top: 3px; }
+    .sd-seal-w { font-size: 12.5px; margin-top: 2px; }
+    .lp-hero .sd-seal { top: -22px; right: -6px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .sd-seal { transition: none; } }
+</style>

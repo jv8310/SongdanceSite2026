@@ -5,7 +5,7 @@
 //
 // writes <audience>-<n>-<slug>.html (the broadcast body, format "html") and
 // .txt (its plain-text part) next to this file, and
-// migrations/0103_bfcm_broadcasts_more_content.sql, which writes them into the
+// migrations/0104_bfcm_broadcasts_headers.sql, which writes them into the
 // fifteen DRAFTS that migration 0102 seeded (by name, only while still a draft). Once the drafts exist, a change to
 // the words is made HERE, built, and saved into the draft again (Claude's
 // broadcast_save, format html, with bodyText).
@@ -48,6 +48,8 @@ const b = (t) => `<strong style="font-weight:600;">${t}</strong>`;
 const row = (inner, pad = '0 44px') => `<tr><td class="pad" style="padding:${pad};">${inner}</td></tr>`;
 const strip = (t) =>
   `<tr><td align="center" style="background-color:#2A1B2A;padding:11px 20px;text-align:center;"><p style="margin:0;${F}font-size:11px;letter-spacing:2px;color:#F4ECDF;font-weight:600;text-transform:uppercase;">${t}</p></td></tr>`;
+// The header picture (strip, headline and discount seal in one image, made by
+// headers/build.cjs): email 1 the photo, 2 and 3 the paper one.
 const hero = (src, alt, href) =>
   `<tr><td style="padding:0;"><a href="${href}" style="display:block;"><img src="${SITE}/email/${src}" width="600" alt="${alt}" style="width:100%;height:auto;background-color:#4A3848;"></a></td></tr>`;
 const eyebrow = (t) =>
@@ -221,7 +223,7 @@ const AUDIENCES = [
     name: 'new: never a workshop or masterclass',
     include: '',
     exclude: 'bfcm:known,bfcm:bought,prod_svh_12w,prod_svh_9m',
-    hero: ['jacob-sounding-heart.jpg', 'Jacob sounding, a hand on his heart'],
+    hero: ['jacob-sounding-heart.jpg', 'Black Friday: 50% off the workshop and the masterclass, through Monday 30 November'],
     eyebrow: 'The workshop &amp; the masterclass',
     offers: (c) => [OFFERS.workshop(c), OFFERS.masterclass(c)],
     emails: [
@@ -271,7 +273,7 @@ const AUDIENCES = [
     name: 'workshop or masterclass, no course yet',
     include: 'bfcm:workshop',
     exclude: 'bfcm:bought,prod_svh_12w,prod_svh_9m',
-    hero: ['svh-circle-sunset.jpg', 'A circle of people sounding together at sunset'],
+    hero: ['svh-circle-sunset.jpg', 'Black Friday: 50% off the 12-week course and the certification, through Monday 30 November'],
     eyebrow: 'The 12-week course &amp; the certification path',
     offers: (c) => [OFFERS.twelve(c), OFFERS.path(c)],
     emails: [
@@ -318,7 +320,7 @@ const AUDIENCES = [
     name: '12-week course finished, no certification',
     include: 'bfcm:12w-ended',
     exclude: 'bfcm:bought,prod_svh_9m',
-    hero: ['svh-retreat-circle-sunset-wide.jpg', 'A circle gathered outdoors at sunset'],
+    hero: ['svh-retreat-circle-sunset-wide.jpg', 'Black Friday: 50% off the certification course, 20% off live passes, through Monday 30 November'],
     eyebrow: 'For those who did the 12 weeks',
     offers: (c) => [OFFERS.cert(c, BEGINS_AFTER), OFFERS.pass(c, PASS_NOW)],
     emails: [
@@ -365,7 +367,7 @@ const AUDIENCES = [
     name: 'on the 12-week course, week 7 to 12',
     include: 'bfcm:12w-late',
     exclude: 'bfcm:bought,prod_svh_9m',
-    hero: ['svh-retreat-circle-sunset-wide.jpg', 'A circle gathered outdoors at sunset'],
+    hero: ['svh-retreat-circle-sunset-wide.jpg', 'Black Friday: 50% off the certification course, 20% off live passes, through Monday 30 November'],
     eyebrow: 'For the second half of your 12 weeks',
     offers: (c) => [OFFERS.cert(c, BEGINS_RUNNING), OFFERS.pass(c, PASS_AFTER)],
     emails: [
@@ -411,7 +413,7 @@ const AUDIENCES = [
     name: 'on the 12-week course, week 1 to 6',
     include: 'bfcm:12w-early',
     exclude: 'bfcm:bought,prod_svh_9m',
-    hero: ['svhgpt-06-holding-space.jpg', 'One person sounding while another holds space'],
+    hero: ['svhgpt-06-holding-space.jpg', 'Black Friday: 50% off the certification course, through Monday 30 November'],
     eyebrow: 'For those who just began the 12 weeks',
     offers: (c) => [OFFERS.cert(c, BEGINS_RUNNING)],
     emails: [
@@ -610,8 +612,7 @@ for (const [ai, A] of AUDIENCES.entries()) {
     const offers = A.offers(`${c}_cta`);
     const first = offers[0];
     const rows = [
-      strip(STRIP[i]),
-      hero(A.hero[0], A.hero[1], url(first.page, `${c}_hero`)),
+      hero(`bfcm/${String.fromCharCode(65 + ai)}-${n}.jpg`, A.hero[1], url(first.page, `${c}_hero`)),
       row(eyebrow(A.eyebrow) + h1(e.h1) + p(HELLO) + e.body.map((t, j) => p(t, j === e.body.length - 1)).join(''), '44px 44px 6px'),
       ...(MORE[c] ?? []).map(section),
       ...offers.map(offer),
@@ -654,8 +655,11 @@ UPDATE broadcasts
 }
 
 writeFileSync(
-  join(here, '../../../migrations/0103_bfcm_broadcasts_more_content.sql'),
-  `-- Black Friday 2026: the fifteen broadcast drafts of migration 0102, with more
+  join(here, '../../../migrations/0104_bfcm_broadcasts_headers.sql'),
+  `-- This one: each email opens on its header picture with the discount seal
+-- (public/email/bfcm/, 26 Nov 2026); the words are those of 0103.
+--
+-- Black Friday 2026: the fifteen broadcast drafts of migration 0102, with more
 -- to read in each (sections taken from the pages they lead to, the reminders
 -- most of all), the 12-month live pass and the monthly's sale months (Jacob,
 -- 25 Nov 2026). Only a broadcast that is still a DRAFT is touched: one already

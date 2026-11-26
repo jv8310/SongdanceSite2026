@@ -25,6 +25,7 @@ const {
   nextWhen = null,
   nextStartsAt = null,
 } = Astro.props;
+import PromoSeal from '../promo/PromoSeal.astro';
 ---
 
 <section class:list={['we-hero', className]}>
@@ -68,6 +69,7 @@ const {
       <span>Replay included</span>
     </div>
   </div>
+  <PromoSeal what="your seat" />
 </section>
 
 <script is:inline>

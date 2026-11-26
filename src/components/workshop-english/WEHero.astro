@@ -1,6 +1,7 @@
 ---
 // Neutral copy is rendered server-side so no-JS visitors get a complete page.
 // The personalization controller swaps #we-h1 / #we-hero-sub by lead lens.
+import PromoSeal from '../promo/PromoSeal.astro';
 ---
 
 <section class="we-hero">
@@ -33,6 +34,7 @@
       <span data-sd-price="ticket">22€</span>
     </div>
   </div>
+  <PromoSeal what="your seat" />
 </section>
 
 <script is:inline>
