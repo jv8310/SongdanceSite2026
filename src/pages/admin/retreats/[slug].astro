@@ -768,6 +768,22 @@ function waitlistStatusLabel(w: { status: string; offer_live: boolean }): string
 // endpoints).
 const flash = (() => {
   const p = Astro.url.searchParams;
+  const ec = p.get('email_change');
+  if (ec) {
+    if (ec === 'invalid') return { tone: 'err' as const, msg: 'That is not a usable email address. Nothing was changed.' };
+    if (ec === 'same') return { tone: 'err' as const, msg: 'That is the address already on the booking. Nothing was changed.' };
+    if (ec === 'not_found') return { tone: 'err' as const, msg: 'That booking no longer exists.' };
+    const intakeNote = ec.endsWith('_intake') ? ' Their intake came along.' : '';
+    const drip = ec.replace(/^done_/, '').replace(/_intake$/, '');
+    const dripNote =
+      drip === 'renamed' ? ' Drip: the subscriber was renamed, tags and history kept.'
+      : drip === 'both' ? ' Drip already knows both addresses and cannot merge them: the old one is left as it is.'
+      : drip === 'new_only' ? ' Drip already knows the new address.'
+      : drip === 'unknown' ? ' Drip knows neither address: use "Resend to Drip" on the booking if they should be there.'
+      : drip === 'error' ? ' Drip could not be reached: check the subscriber there by hand.'
+      : ' Drip was not touched: use "Resend to Drip" on the booking if they should be there.';
+    return { tone: drip === 'error' ? ('err' as const) : ('ok' as const), msg: `Email address changed.${intakeNote}${dripNote}` };
+  }
   if (p.get('bal_bulk')) {
     return { tone: 'ok' as const, msg: `Balance emails sent: ${p.get('bal_sent') ?? '0'} · failed: ${p.get('bal_failed') ?? '0'}.` };
   }
@@ -2106,6 +2122,17 @@ const flash = (() => {
                     <button type="submit" class="adm-btn adm-btn--ghost">Resend to Drip</button>
                   </form>
                 )}
+
+                <form method="POST" action="/api/admin/change-retreat-email" class="adm-reg-assign"
+                      onsubmit={`return confirm('Change the email address of registration #${r.id} (${jsStr(r.email)})? Their intake and their Drip subscriber follow.')`}>
+                  <input type="hidden" name="registration_id" value={r.id} />
+                  <input type="hidden" name="return_to" value={returnTo} />
+                  <label>
+                    <span>Change email</span>
+                    <input type="email" name="new_email" required placeholder="new address" autocomplete="off" />
+                  </label>
+                  <button type="submit">Change</button>
+                </form>
 
                 <form method="POST" action="/api/admin/delete-registration" class="adm-reg-delete"
                       onsubmit={`return confirm('Permanently delete registration #${r.id} (${r.name}, ${r.email})? This cannot be undone.')`}>
