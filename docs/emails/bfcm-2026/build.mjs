@@ -332,6 +332,7 @@ const AUDIENCES = [
         body: [
           'You did the 12-week course. The materials are still yours, and I hope a tone still finds its way out now and then, in the kitchen or the parked car.',
           'What ended is the live part: the weekly hour together, the questions, hearing each other. Sounding alone is one thing. Being heard changes the sound.',
+          'You can come back for just one month. Feel the connection and the aliveness of the community again, ask your questions, share your sound in a Q&amp;A, or simply get back to the practice. And join a live deepening session with me.',
           `Through ${UNTIL} there are two ways back in, both at a price I don&rsquo;t usually offer.`,
         ],
         ps: 'Not sure which? The pass brings back the live sessions, for one month or a whole year. The certification course brings them back for nine months and teaches you to hold space for someone else.',
@@ -356,6 +357,7 @@ const AUDIENCES = [
         body: [
           'This is my last note about it.',
           'Tonight the certification course goes back to &euro;797 and the live passes to their usual price.',
+          'One month of the live pass is enough to feel the community again: your questions, your sound in a Q&amp;A, a deepening session with me, and the practice back in your week.',
           'If neither is for you now, nothing is lost. Your 12 weeks stay yours, and so does your voice.',
         ],
         ps: 'Tonight means the end of Monday, wherever you are.',
