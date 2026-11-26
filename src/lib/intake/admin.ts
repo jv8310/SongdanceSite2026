@@ -122,7 +122,7 @@ export function extractSummary(md: string | null | undefined): string {
   const lines = md.split(/\r?\n/);
   let i = 0;
   while (i < lines.length) {
-    if (/^###\s+Korte\s+samenvatting/i.test(lines[i]!)) {
+    if (/^###\s+(Korte\s+samenvatting|Short\s+summary)/i.test(lines[i]!)) {
       i++;
       const out: string[] = [];
       while (i < lines.length && !/^#{1,6}\s+/.test(lines[i]!)) {

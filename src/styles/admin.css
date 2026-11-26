@@ -450,7 +450,7 @@ body { background: var(--adm-paper); }
   font-size: 11px; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--adm-mute);
 }
-.adm-reg-assign select {
+.adm-reg-assign select, .adm-reg-assign input[type="email"] {
   padding: 6px 8px; font-size: 13px;
   border: 1px solid var(--adm-line); border-radius: 6px;
   background: var(--adm-paper-soft);
