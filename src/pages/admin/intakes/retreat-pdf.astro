@@ -417,7 +417,7 @@ const self = `/admin/intakes/retreat-pdf?event=${encodeURIComponent(eventCode)}`
         {p.html && p.pending && (
           <div data-translate={p.id}>
             <p class="waiting">Translating into English…</p>
-            <template set:html={p.html} />
+            <div hidden data-original set:html={p.html} />
           </div>
         )}
       </article>
@@ -467,11 +467,11 @@ const self = `/admin/intakes/retreat-pdf?event=${encodeURIComponent(eventCode)}`
           }
         } catch (err) {
           failed += 1;
-          const tpl = slot.querySelector('template');
+          const kept = slot.querySelector('[data-original]');
           const note = document.createElement('p');
           note.className = 'fallback-note';
           note.textContent = `Shown in Dutch: the translation did not come through (${err instanceof Error ? err.message : 'error'}).`;
-          if (tpl) box.appendChild(tpl.content.cloneNode(true));
+          if (kept) box.innerHTML = kept.innerHTML;
           slot.replaceChildren(note, box);
           if (summaryCell) {
             const first = box.querySelector('h3 + p');
