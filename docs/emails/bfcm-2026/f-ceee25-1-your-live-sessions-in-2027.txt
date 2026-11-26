@@ -31,6 +31,6 @@ Jacob
 P.S. The certification window is an add-on to the pass you choose, and it follows the sale price too.
 
 --
-Three emails about this, the last one on Monday.
+One email about this.
 Not for you? Unsubscribe: {{ unsubscribe_url }}
 Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

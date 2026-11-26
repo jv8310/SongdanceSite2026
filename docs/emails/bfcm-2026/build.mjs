@@ -657,8 +657,9 @@ for (const [ai, A] of AUDIENCES.entries()) {
       ...offers.map(offer),
       signoff(e.ps, e.close),
     ];
-    const html = page(plain(e.subject), e.preheader, rows);
-    const text = `${HELLO}
+    const once = (t) => (A.emails.length === 1 ? t.replace('Three emails about this, the last one on Monday.', 'One email about this.') : t);
+    const html = once(page(plain(e.subject), e.preheader, rows));
+    const text = once(`${HELLO}
 
 ${e.body.map(plain).join('\n\n')}
 ${(MORE[c] ?? []).map((m) => `\n\n${sectionText(m)}`).join('')}
@@ -675,11 +676,18 @@ Jacob
 
 P.S. ${plain(e.ps)}
 
-${TEXT_FOOT}`;
+${TEXT_FOOT}`);
     const file = `${A.key}-${n}-${e.slug}`;
     writeFileSync(join(here, `${file}.html`), html);
     writeFileSync(join(here, `${file}.txt`), text);
     const name = `BFCM ${String.fromCharCode(65 + ai)}${n} · ${WHEN[i]} · ${A.name}`;
+    // An audience added after migration 0102 (F) has no draft yet: make it.
+    if (ai >= 5)
+      seeds.push(`-- ${file} (new draft)
+INSERT INTO broadcasts (name, subject, preheader, heading, body, body_text, format, status, audience_include_tags, audience_exclude_tags)
+SELECT ${sqlQuote(name)}, ${sqlQuote(plain(e.subject))}, ${sqlQuote(plain(e.preheader))}, ${sqlQuote(plain(e.h1))}, '', '', 'html', 'draft', ${sqlQuote(A.include)}, ${sqlQuote(A.exclude)}
+ WHERE NOT EXISTS (SELECT 1 FROM broadcasts WHERE name = ${sqlQuote(name)});
+`);
     seeds.push(`-- ${file}
 UPDATE broadcasts
    SET subject = ${sqlQuote(plain(e.subject))},
