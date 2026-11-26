@@ -34,10 +34,11 @@ const PAGES = {
   twelve: ['/courses/12-week', 'register'],
   cert: ['/courses/certification', 'register'],
   pass: ['/courses/live-pass', 'lp-buy-title'],
+  extend: ['/courses/live-pass?extend=1', 'lp-buy-title'],
 };
 const url = (page, content, amp = '&amp;') => {
   const [path, hash] = PAGES[page];
-  return `${SITE}${path}?utm_source=broadcast${amp}utm_medium=email${amp}utm_campaign=bfcm_2026${amp}utm_content=${content}${amp}{{prefill}}#${hash}`;
+  return `${SITE}${path}${path.includes('?') ? amp : '?'}utm_source=broadcast${amp}utm_medium=email${amp}utm_campaign=bfcm_2026${amp}utm_content=${content}${amp}{{prefill}}#${hash}`;
 };
 const HELLO = 'Hello {{ subscriber.first_name | default: "there" }},';
 const UNTIL = 'Monday 30&nbsp;November';
@@ -202,6 +203,18 @@ const OFFERS = {
     note: 'The monthly is 20% off for its first two months. ' + CUR,
     text: `THE LIVE PASS, 20% OFF\nThe weekly Q&A, one live hour, and the monthly deepening session, two hours on one theme.\n1 month (4 Q&As, 1 deepening session): EUR 41 instead of EUR 52\n3 months (12 Q&As, 3 deepening sessions): EUR 105 instead of EUR 132\n6 months (24 Q&As, 6 deepening sessions): EUR 187 instead of EUR 234\n12 months (48 Q&As, 12 deepening sessions): EUR 348 instead of EUR 436\nMonthly, cancel any time: EUR 41.60 the first month, EUR 35.20 the second (20% off both), then EUR 44 a month\n${starts.replace(/&rsquo;/g, "'")}`,
   }),
+};
+// The CEEE 2025 cohort: the year pass first (their "CEEE 2027"), then the rest.
+const ceeePass = (c) => {
+  const o = OFFERS.pass(c, 'Once your address is in, the page shows the day your pass would start.');
+  const [m1, m3, m6, m12, monthly] = o.lines;
+  return {
+    ...o,
+    head: 'Your live sessions for 2027',
+    lines: [['12 months &middot; your CEEE 2027', m12[1], m12[2], m12[3]], m1, m3, m6, monthly],
+    note: 'Applying for certification: tick &ldquo;Extend my certification window&rdquo; on the same page. ' + CUR,
+    text: o.text.replace('THE LIVE PASS, 20% OFF', 'THE LIVE PASS, 20% OFF (12 months = your CEEE 2027)') + '\nApplying for certification: tick "Extend my certification window" on the same page.',
+  };
 };
 const BEGINS_AFTER = 'You already have the foundation, so you take it on its own.';
 const BEGINS_RUNNING = 'It begins when your 12 weeks are over, so nothing overlaps.';
@@ -456,6 +469,30 @@ const AUDIENCES = [
         close: 'See you in the Q&amp;A,',
       },
     ],
+  },
+  {
+    key: 'f-ceee25',
+    name: 'CEEE 2025, no CEEE 2026',
+    include: 'cert:no-certification',
+    exclude: 'bfcm:bought,prod_ceee-26,prod_ceeee-26_monthly,prod_livepass,prod_livepassmonthly',
+    hero: ['', 'Black Friday: 20% off live passes, through Monday 30 November'],
+    eyebrow: 'For the CEEE 2025 circle',
+    offers: (c) => [ceeePass(c)],
+    emails: [
+      {
+        slug: 'your-live-sessions-in-2027',
+        subject: 'Your live sessions in 2027',
+        preheader: 'A year pass at 20% off, or just one month. Through Monday.',
+        h1: `A year of live sessions, ${em('or just a month.')}`,
+        body: [
+          'You were part of CEEE in 2025, and the certification course came with it as a gift for 2026. That access runs until 31&nbsp;December.',
+          `If you would like to keep coming to the live sessions next year, this is the weekend to arrange it. Through ${UNTIL} every live pass is 20% off.`,
+          `${b('A whole year:')} the 12-month pass is your CEEE for 2027, 48 Q&amp;As and 12 deepening sessions.`,
+          `${b('Or just one month:')} feel the connection and the aliveness of the community again, ask your questions, share your sound in a Q&amp;A, or simply get back to the practice. And join a live deepening session with me.`,
+          `One more thing. The course you received with CEEE 2025 did not include applying for certification. If you wish to apply, you can <a href="${url('extend', 'F1_extend')}" style="color:#A14826;">extend your certification window</a> with any pass: it stays open for as long as the pass runs.`,
+        ],
+        ps: 'The certification window is an add-on to the pass you choose, and it follows the sale price too.',
+      },    ],
   },
 ];
 
