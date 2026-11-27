@@ -1,9 +1,15 @@
 ---
 // Print-friendly view that gathers the AI assessments (summary + bullets,
 // not the raw intake answers) for every submission of a single retreat into
-// one document. Opening it triggers the browser's print dialog, where the
-// admin can "Save as PDF". Standalone HTML on purpose — no site chrome, no
-// nav/footer — so the resulting PDF is clean.
+// one document, in English. Opening it and pressing Print gives the browser's
+// print dialog, where the admin can "Save as PDF". Standalone HTML on purpose
+// — no site chrome, no nav/footer — so the resulting PDF is clean.
+//
+// Language: the assessor's headings are Dutch and so are some assessments.
+// An English one only gets its headings put into English, here. A Dutch one
+// is shown from its kept translation, or — the first time — translated by the
+// page itself, one call per person (/api/admin/intake-translate), and kept.
+// `?lang=nl` shows everything as stored.
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { resolveEventWithDb } from '../../../lib/intake/events';
 import {
@@ -11,6 +17,8 @@ import {
   stripClassificationHeading,
   extractSummary,
 } from '../../../lib/intake/admin';
+import { cachedTranslations, englishHeadings, looksDutch } from '../../../lib/intake/translate';
+import { tidyName } from '../../../lib/email/names';
 
 export const prerender = false;
 
@@ -20,10 +28,12 @@ if (!authed) {
   return Astro.redirect('/admin/login');
 }
 
-const eventCode = new URL(Astro.request.url).searchParams.get('event') ?? '';
+const params = new URL(Astro.request.url).searchParams;
+const eventCode = params.get('event') ?? '';
 if (!eventCode) {
   return new Response('Missing ?event=<retreat-slug>', { status: 400 });
 }
+const original = params.get('lang') === 'nl';
 
 const event = await resolveEventWithDb(env.DB, eventCode);
 
@@ -42,173 +52,451 @@ const rows: Row[] = (
       `SELECT id, email, full_name, assessment_md, classification, created_at
          FROM intake_submissions
         WHERE event_code = ?
-        ORDER BY full_name ASC, created_at ASC`,
+        ORDER BY full_name COLLATE NOCASE ASC, created_at ASC`,
     )
     .bind(eventCode)
     .all<Row>()
 ).results ?? [];
 
-const people = rows.map((r) => ({
-  name: r.full_name ?? r.email,
-  email: r.email,
-  summary: extractSummary(r.assessment_md),
-  html: r.assessment_md
-    ? renderAssessmentMarkdown(stripClassificationHeading(r.assessment_md))
-    : '',
-}));
+// A failed cache read only means the Dutch ones are translated again.
+const kept = original
+  ? new Map<string, string>()
+  : await cachedTranslations(env.DB, rows).catch(() => new Map<string, string>());
 
-const generated = new Date().toISOString().slice(0, 10);
-const docTitle = `Intake-assessments — ${event.label.nl}`;
+const people = rows.map((r) => {
+  let md = r.assessment_md;
+  let pending = false;
+  if (md && !original) {
+    const english = kept.get(r.id);
+    if (english) md = englishHeadings(english);
+    else if (looksDutch(md)) pending = true;
+    else md = englishHeadings(md);
+  }
+  return {
+    id: r.id,
+    name: r.full_name ? tidyName(r.full_name) : r.email,
+    pending,
+    summary: extractSummary(md),
+    html: md ? renderAssessmentMarkdown(stripClassificationHeading(md)) : '',
+  };
+});
+
+const pendingCount = people.filter((p) => p.pending).length;
+const generated = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Europe/Brussels',
+}).format(new Date());
+const retreatName = event.label.en;
+const docTitle = `Intake assessments — ${retreatName}`;
+const countLabel = `${people.length} ${people.length === 1 ? 'participant' : 'participants'}`;
+const self = `/admin/intakes/retreat-pdf?event=${encodeURIComponent(eventCode)}`;
 ---
 
 <!doctype html>
-<html lang="nl">
+<html lang={original ? 'nl' : 'en'}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex" />
     <title>{docTitle}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Cormorant+Garamond:ital,wght@1,400;1,500&family=Figtree:wght@400;500;600&display=swap"
+    />
     <style>
       :root {
-        --ink: #1c1a17;
-        --ink-soft: #4a463f;
-        --mute: #8a857c;
-        --line: #e4e0d8;
+        --paper: #f4ecdf;
+        --paper-soft: #faf5ec;
+        --ink: #2a1b2a;
+        --ink-soft: #5a4a56;
+        --mute: #94868d;
+        --line: #e6dccb;
         --ember: #c9603a;
-        --success: #2f7a4c;
-        --warn: #c4801f;
-        --danger: #b53d3d;
+        --ember-deep: #a34a29;
+        --plum: #5b3a55;
+        --display: 'Spectral', Georgia, 'Times New Roman', serif;
+        --lyric: 'Cormorant Garamond', Georgia, serif;
+        --body: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       }
       * { box-sizing: border-box; }
       html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       body {
         margin: 0;
-        font-family: Georgia, 'Times New Roman', serif;
+        font-family: var(--body);
         color: var(--ink);
         line-height: 1.5;
-        background: #f4f2ee;
+        background: #e9e1d3;
       }
-      .sheet {
-        max-width: 760px;
-        margin: 0 auto;
-        padding: 40px 48px 64px;
-        background: #fff;
+
+      @page {
+        size: A4;
+        margin: 17mm 18mm 19mm;
+        @bottom-left {
+          content: 'Songdance · Intake assessments · Confidential';
+          font-family: 'Figtree', sans-serif;
+          font-size: 7.5pt;
+          letter-spacing: 0.06em;
+          color: #94868d;
+        }
+        @bottom-right {
+          content: counter(page) ' / ' counter(pages);
+          font-family: 'Figtree', sans-serif;
+          font-size: 7.5pt;
+          color: #94868d;
+        }
       }
+
       .toolbar {
         position: sticky;
         top: 0;
+        z-index: 2;
         display: flex;
         gap: 12px;
         align-items: center;
         justify-content: space-between;
-        max-width: 760px;
-        margin: 0 auto;
-        padding: 12px 48px;
-        background: #f4f2ee;
-        border-bottom: 1px solid var(--line);
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        flex-wrap: wrap;
+        padding: 10px 24px;
+        background: var(--ink);
+        color: #f4ecdf;
       }
-      .toolbar p { margin: 0; font-size: 13px; color: var(--ink-soft); }
+      .toolbar p { margin: 0; font-size: 13px; opacity: 0.85; }
+      .toolbar .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
       .btn {
         appearance: none;
         border: 1px solid var(--ember);
         background: var(--ember);
         color: #fff;
         font: inherit;
-        font-size: 14px;
-        padding: 8px 16px;
-        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 7px 14px;
+        border-radius: 999px;
         cursor: pointer;
         text-decoration: none;
       }
-      .btn--ghost { background: transparent; color: var(--ember); }
+      .btn[disabled] { opacity: 0.55; cursor: progress; }
+      .btn--ghost { background: transparent; border-color: rgba(244, 236, 223, 0.35); color: #f4ecdf; }
 
-      .doc-head { border-bottom: 2px solid var(--ink); padding-bottom: 12px; margin-bottom: 18px; }
-      .doc-head h1 { margin: 0 0 4px; font-size: 22px; }
-      .doc-head .meta { margin: 0; font-size: 12px; color: var(--mute); font-family: -apple-system, sans-serif; }
+      /* On screen each printed page is a sheet of paper; in print the
+         sheets dissolve and @page does the margins. */
+      .sheet {
+        width: 210mm;
+        max-width: calc(100% - 24px);
+        min-height: 120mm;
+        margin: 22px auto;
+        padding: 17mm 18mm;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(42, 27, 42, 0.08), 0 10px 30px rgba(42, 27, 42, 0.1);
+      }
 
-      /* Overview: every participant on one page — name + short summary. */
-      .overview { break-after: page; }
-      .overview h2 { font-size: 14px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.04em; font-family: -apple-system, sans-serif; color: var(--ink-soft); }
-      .ov-list { display: table; width: 100%; border-collapse: collapse; font-size: 10.5px; line-height: 1.32; }
-      .ov-row { display: table-row; }
-      .ov-row > div { display: table-cell; padding: 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-      .ov-name { width: 150px; padding-right: 12px !important; font-weight: 700; font-family: -apple-system, sans-serif; }
+      /* Cover + overview */
+      .cover { padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
+      .eyebrow {
+        margin: 0 0 10px;
+        font-size: 8.5px;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--ember-deep);
+      }
+      .cover h1 {
+        margin: 0;
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: 32px;
+        line-height: 1.12;
+        letter-spacing: -0.01em;
+      }
+      .cover .sub {
+        margin: 4px 0 0;
+        font-family: var(--lyric);
+        font-style: italic;
+        font-size: 22px;
+        color: var(--plum);
+      }
+      .cover .meta { margin: 12px 0 0; font-size: 10.5px; color: var(--mute); }
+      .cover .meta strong { color: var(--ink-soft); font-weight: 500; }
+      .note {
+        margin: 0 0 18px;
+        padding: 9px 12px;
+        background: var(--paper-soft);
+        border-left: 2px solid var(--ember);
+        font-size: 10px;
+        line-height: 1.45;
+        color: var(--ink-soft);
+      }
+
+      .label {
+        margin: 0 0 6px;
+        font-size: 8.5px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ember-deep);
+      }
+      .ov-list { margin: 0; padding: 0; list-style: none; counter-reset: ov; }
+      .ov-row {
+        counter-increment: ov;
+        display: grid;
+        grid-template-columns: 22px 138px 1fr;
+        gap: 0 10px;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 10px;
+        line-height: 1.4;
+        break-inside: avoid;
+      }
+      .ov-row::before {
+        content: counter(ov, decimal-leading-zero);
+        font-size: 8.5px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        color: var(--ember);
+        padding-top: 2px;
+      }
+      .ov-name { font-family: var(--display); font-weight: 600; font-size: 11.5px; color: var(--ink); }
       .ov-sum { color: var(--ink-soft); }
       .ov-sum.is-empty { color: var(--mute); font-style: italic; }
 
       /* One participant per page. */
-      .person { break-before: page; break-inside: avoid; padding-top: 4px; }
-      .person-head { margin-bottom: 4px; }
-      .person-head h2 { margin: 0; font-size: 17px; }
+      .person-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        padding-bottom: 9px;
+        margin-bottom: 10px;
+        border-bottom: 1px solid var(--line);
+        position: relative;
+      }
+      .person-head::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        bottom: -1px;
+        width: 46px;
+        height: 2px;
+        background: var(--ember);
+      }
+      .person-head h2 {
+        margin: 0;
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: 25px;
+        line-height: 1.15;
+        letter-spacing: -0.01em;
+      }
+      .person-head .where {
+        flex: none;
+        font-size: 8.5px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--mute);
+        text-align: right;
+      }
 
-      .assessment { font-size: 11px; line-height: 1.38; }
-      .assessment h2 { font-size: 13px; margin: 8px 0 3px; }
-      .assessment h3 { font-size: 11px; margin: 9px 0 2px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; font-family: -apple-system, sans-serif; }
+      .assessment { font-size: 10.5px; line-height: 1.45; color: var(--ink); }
+      /* "Participant: name, age, for retreat" */
+      .assessment > p:first-child { margin: 0 0 10px; font-size: 10px; color: var(--ink-soft); }
+      .assessment > p:first-child strong { font-weight: 600; color: var(--ink); }
+      .assessment h2 { font-family: var(--display); font-weight: 500; font-size: 14px; margin: 10px 0 4px; }
+      .assessment h3 {
+        margin: 12px 0 4px;
+        font-size: 8.5px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ember-deep);
+        break-after: avoid;
+      }
       .assessment p { margin: 4px 0; }
-      .assessment ul { margin: 4px 0; padding-left: 18px; }
-      .assessment li { margin: 1px 0; }
-      .no-assessment { color: var(--mute); font-style: italic; }
-
-      .empty { padding: 40px 0; color: var(--mute); font-style: italic; }
+      /* The short summary, set apart. */
+      .assessment h3:first-of-type + p {
+        margin: 5px 0 2px;
+        padding: 10px 13px;
+        background: var(--paper-soft);
+        border-left: 2px solid var(--ember);
+        font-family: var(--display);
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--ink);
+      }
+      .assessment ul { margin: 4px 0; padding: 0; list-style: none; }
+      .assessment li { position: relative; margin: 2.5px 0; padding-left: 13px; break-inside: avoid; }
+      .assessment li::before {
+        content: '';
+        position: absolute;
+        left: 2px;
+        top: 0.62em;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: var(--ember);
+      }
+      .assessment strong { font-weight: 600; }
+      .no-assessment, .empty, .waiting { color: var(--mute); font-style: italic; font-size: 11px; }
+      .empty { padding: 30px 0; }
+      .fallback-note {
+        margin: 0 0 10px;
+        padding: 7px 10px;
+        background: #fbeee9;
+        border-left: 2px solid var(--ember);
+        font-size: 9.5px;
+        color: var(--ember-deep);
+      }
 
       @media print {
         body { background: #fff; }
-        .toolbar { display: none; }
-        .sheet { max-width: none; margin: 0; padding: 0; }
+        .toolbar, .fallback-note { display: none; }
+        .sheet { width: auto; max-width: none; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+        .sheet + .sheet { break-before: page; }
       }
     </style>
   </head>
   <body>
     <div class="toolbar">
-      <p>{people.length} {people.length === 1 ? 'deelnemer' : 'deelnemers'} · gebruik “Opslaan als PDF” in het printvenster</p>
-      <div>
+      <p id="toolbar-status">
+        {countLabel} · choose “Save as PDF” in the print window
+      </p>
+      <div class="actions">
         <a class="btn btn--ghost" href={`/admin/intakes?event=${encodeURIComponent(eventCode)}`}>← Intakes</a>
-        <button class="btn" type="button" id="print-btn">Print / Opslaan als PDF</button>
+        {original
+          ? <a class="btn btn--ghost" href={self}>In English</a>
+          : <a class="btn btn--ghost" href={`${self}&lang=nl`}>As written</a>}
+        <button class="btn" type="button" id="print-btn" data-pending={pendingCount}>Print / Save as PDF</button>
       </div>
     </div>
 
     <div class="sheet">
-      <div class="doc-head">
-        <h1>{event.label.nl}</h1>
-        <p class="meta">Intake-assessments · {people.length} {people.length === 1 ? 'deelnemer' : 'deelnemers'} · gegenereerd {generated}</p>
-      </div>
+      <header class="cover">
+        <p class="eyebrow">Songdance · Somatic Vocal Healing</p>
+        <h1>{retreatName}</h1>
+        <p class="sub">Intake assessments</p>
+        <p class="meta"><strong>{countLabel}</strong> · prepared {generated}</p>
+      </header>
 
       {people.length === 0 && (
-        <p class="empty">Nog geen intake-inzendingen voor deze retreat.</p>
+        <p class="empty">No intakes have come in for this retreat yet.</p>
       )}
 
       {people.length > 0 && (
-        <section class="overview">
-          <h2>Overzicht deelnemers</h2>
-          <div class="ov-list">
+        <Fragment>
+          <p class="note">
+            Confidential, for the facilitation team only. Each assessment is advice drawn from the
+            participant’s intake to help attune the work; it is not a diagnosis, and the decision
+            stays with Jacob.
+          </p>
+          <p class="label">Participants</p>
+          <ol class="ov-list">
             {people.map((p) => (
-              <div class="ov-row">
+              <li class="ov-row">
                 <div class="ov-name">{p.name}</div>
-                <div class={`ov-sum${p.summary ? '' : ' is-empty'}`}>
-                  {p.summary || 'Geen samenvatting beschikbaar.'}
+                <div class={`ov-sum${p.summary && !p.pending ? '' : ' is-empty'}`} data-summary-for={p.id}>
+                  {p.pending ? 'Translating…' : p.summary || 'No summary available.'}
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
-        </section>
+          </ol>
+        </Fragment>
       )}
-
-      {people.map((p) => (
-        <article class="person">
-          <div class="person-head">
-            <h2>{p.name}</h2>
-          </div>
-          {p.html
-            ? <div class="assessment" set:html={p.html} />
-            : <p class="no-assessment">Geen automatisch assessment beschikbaar.</p>}
-        </article>
-      ))}
     </div>
 
+    {people.map((p, i) => (
+      <article class="sheet person">
+        <div class="person-head">
+          <h2>{p.name}</h2>
+          <span class="where">{String(i + 1).padStart(2, '0')} / {String(people.length).padStart(2, '0')}</span>
+        </div>
+        {!p.html && <p class="no-assessment">No assessment is available for this intake.</p>}
+        {p.html && !p.pending && <div class="assessment" set:html={p.html} />}
+        {p.html && p.pending && (
+          <div data-translate={p.id}>
+            <p class="waiting">Translating into English…</p>
+            <div hidden data-original set:html={p.html} />
+          </div>
+        )}
+      </article>
+    ))}
+
     <script>
-      const btn = document.getElementById('print-btn');
+      const btn = document.getElementById('print-btn') as HTMLButtonElement | null;
+      const status = document.getElementById('toolbar-status');
+      const slots = Array.from(document.querySelectorAll<HTMLElement>('[data-translate]'));
+      const total = slots.length;
+      let done = 0;
+      let failed = 0;
+      const readyText = status?.textContent ?? '';
+
+      const paint = () => {
+        if (!btn) return;
+        if (done < total) {
+          btn.disabled = true;
+          btn.textContent = `Translating ${done + 1} of ${total}…`;
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Print / Save as PDF';
+          if (status && failed > 0) {
+            status.textContent = `${failed} could not be translated and ${failed === 1 ? 'is' : 'are'} shown in Dutch. Reload to try again.`;
+          } else if (status) {
+            status.textContent = readyText;
+          }
+        }
+      };
+
+      async function translate(slot: HTMLElement) {
+        const id = slot.dataset.translate ?? '';
+        const summaryCell = document.querySelector<HTMLElement>(`[data-summary-for="${id}"]`);
+        const box = document.createElement('div');
+        box.className = 'assessment';
+        try {
+          const body = new FormData();
+          body.set('id', id);
+          const res = await fetch('/api/admin/intake-translate', { method: 'POST', body });
+          const data = (await res.json()) as { ok: boolean; html?: string; summary?: string; error?: string };
+          if (!data.ok || !data.html) throw new Error(data.error || 'no translation');
+          box.innerHTML = data.html;
+          slot.replaceChildren(box);
+          if (summaryCell) {
+            summaryCell.textContent = data.summary || 'No summary available.';
+            summaryCell.classList.toggle('is-empty', !data.summary);
+          }
+        } catch (err) {
+          failed += 1;
+          const kept = slot.querySelector('[data-original]');
+          const note = document.createElement('p');
+          note.className = 'fallback-note';
+          note.textContent = `Shown in Dutch: the translation did not come through (${err instanceof Error ? err.message : 'error'}).`;
+          if (kept) box.innerHTML = kept.innerHTML;
+          slot.replaceChildren(note, box);
+          if (summaryCell) {
+            const first = box.querySelector('h3 + p');
+            summaryCell.textContent = first?.textContent || 'No summary available.';
+            summaryCell.classList.toggle('is-empty', !first);
+          }
+        }
+        done += 1;
+        paint();
+      }
+
+      // Three at a time: quick enough, and well inside the API's limits.
+      async function run() {
+        const queue = [...slots];
+        const worker = async () => {
+          for (let next = queue.shift(); next; next = queue.shift()) await translate(next);
+        };
+        await Promise.all([worker(), worker(), worker()]);
+      }
+
       if (btn) btn.addEventListener('click', () => window.print());
+      if (total > 0) {
+        paint();
+        void run();
+      }
     </script>
   </body>
 </html>

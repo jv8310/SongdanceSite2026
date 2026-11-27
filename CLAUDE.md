@@ -1897,6 +1897,26 @@ it ([`retreat-intake.ts`](src/lib/intake/retreat-intake.ts)):
   429, stamps the `*_sent_at` column. The old `/api/admin/invitations/*`
   endpoints use it too.
 
+### Assessments PDF, in English; a booking's email address (26 Nov 2026)
+
+`/admin/intakes/retreat-pdf?event=<intake slug>` (the "Assessments PDF" link on the retreat
+page) is in **English**: a cover with the overview, then one participant per page. The
+assessor's section headings are Dutch and so are some assessments
+([`translate.ts`](src/lib/intake/translate.ts)): an English one only has its headings put
+into English on the page (`englishHeadings`, no call); a Dutch one (`looksDutch`) is
+translated by Claude the first time the page is opened, one call per person from the page
+itself (`/api/admin/intake-translate`), and kept in `events`
+(`intake-assess-en-<submission id>-<hash of the Dutch text>`, so a re-run assessment is
+translated anew). Print waits until they are in; one that fails is shown in Dutch with a
+note. `&lang=nl` shows everything as written. No migration.
+
+**Change email** on a booking (`/admin/retreats/<slug>` → Registrations, each row;
+[`change-email.ts`](src/lib/registrations/change-email.ts), `/api/admin/change-retreat-email`):
+the row keeps its id, the retreat's intake invitation, submission and travel answers move
+to the new address (one the new address already holds there is left alone), and Drip
+renames the subscriber when it knows the old address and not the new one. Logged as
+`registration.email_changed`. The contact list and the member app are not touched.
+
 ### Transport section — built per retreat, on instruction
 
 How people get to a retreat differs per retreat, so each one that needs it
