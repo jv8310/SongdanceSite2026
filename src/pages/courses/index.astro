@@ -10,8 +10,8 @@ interface CourseItem {
   href: string;
   img: string;
   desc: string;
-  note: string;
-  price?: MarketingProduct; // opts into client-side currency localization + promo strike
+  facts: string[]; // short, literal facts about the format — never a claim the page can't back
+  price: MarketingProduct; // the price chip: currency-localized + struck while a promo runs
   flag?: string; // a small ribbon over the picture ("Registrations now open")
   pos?: string; // object-position override when the 3:2 crop would clip the subject
 }
@@ -22,12 +22,11 @@ interface CourseGroup {
 }
 
 // Each card carries its own picture from the R2 library (served at /media/…),
-// a one-line description, and a price line. Cards with a price get their figure
-// wrapped in its own chip (see priceParts) so PriceSync can localize the
-// currency AND — while the launch promo is live — strike the normal price and
-// show the discounted one. Every figure matches what's charged at checkout.
-// Certification shows its cert-only line with the €797 sticker struck
-// permanently (hasCompareStrike).
+// a one-line description, a few literal facts about the format, and a footer
+// with the price. The price chip is localized by PriceSync and — while a site
+// sale runs — struck through with the sale price beside it. Certification
+// shows its €797 sticker struck permanently (hasCompareStrike). Every figure
+// matches what's charged at checkout.
 const groups: CourseGroup[] = [
   {
     title: 'Somatic Vocal Healing',
@@ -37,8 +36,8 @@ const groups: CourseGroup[] = [
         label: 'Vocal Healing Workshop',
         href: '/workshop',
         img: '/media/library/svh-retreat-sounding-blue.webp',
-        desc: 'One live hour to meet the practice — one honest tone, and what it opens.',
-        note: '22€ · one live hour',
+        desc: 'Seventy live minutes to meet the practice — one honest tone, and what it opens.',
+        facts: ['70 minutes', 'Live on Zoom'],
         price: 'ticket',
       },
       {
@@ -46,7 +45,7 @@ const groups: CourseGroup[] = [
         href: '/courses/12-week',
         img: '/media/library/svhgpt-01-hero-in-one-breath.webp',
         desc: 'Twelve weeks to learn the practice for yourself — guided modules and live weekly Q&A, until you can hold it alone.',
-        note: '€550 · live Q&A',
+        facts: ['Self-paced modules, yours for life', 'Weekly live Q&A for 12 weeks'],
         price: 'twelve-week',
       },
       {
@@ -54,7 +53,7 @@ const groups: CourseGroup[] = [
         href: '/courses/certification',
         img: '/media/library/svh-retreat-circle-sunset-group-jacob-central.webp',
         desc: 'Go fully in with your own voice — and learn to hold space for another’s. Self-paced, with weekly live Q&As and monthly two-hour deepening sessions for nine months.',
-        note: '€797 · self-paced',
+        facts: ['Class library + manuals, instant access', 'Weekly Q&A + monthly deepening, 9 months'],
         price: 'cert',
       },
       {
@@ -62,7 +61,7 @@ const groups: CourseGroup[] = [
         href: '/courses/masterclass',
         img: '/media/library/jacob-teaching.webp',
         desc: 'A 100-minute live masterclass for therapists, coaches and facilitators — when words can’t reach it, sound can.',
-        note: '44€ · 100-min live',
+        facts: ['100 minutes', 'Live on Zoom', 'For practitioners'],
         price: 'masterclass',
         pos: 'center 20%', // tall portrait — bias the crop up so his head isn't clipped
       },
@@ -77,7 +76,7 @@ const groups: CourseGroup[] = [
         href: '/courses/grief',
         img: '/media/library/grief-jacob-letting-go-sounding.webp',
         desc: 'Four live sessions for the grief no one taught you how to carry — held gently, sounded together.',
-        note: 'with Daniela · €99',
+        facts: ['With Daniela Hess', '4 sessions'],
         price: 'grief',
       },
       {
@@ -85,7 +84,7 @@ const groups: CourseGroup[] = [
         href: '/courses/forgiveness',
         img: '/media/library/forgiveness-sunflowers-sunset.webp',
         desc: 'When forgiveness feels impossible, come anyway. Four live sessions honoring what the words alone never reached.',
-        note: 'with Daniela · 6–16 Dec · €147',
+        facts: ['With Daniela Hess', '4 live sessions, 6–16 Dec'],
         price: 'forgiveness',
         flag: 'Registrations now open',
       },
@@ -100,7 +99,7 @@ const groups: CourseGroup[] = [
         href: '/courses/authentic-singing',
         img: '/media/library/singing-lights-woman.webp',
         desc: 'Forty weeks of mantras and music — made to free the voice you already have, not train it into something else.',
-        note: '€150 · 40 sessions',
+        facts: ['40 weekly sessions'],
         price: 'asj',
       },
       {
@@ -108,7 +107,7 @@ const groups: CourseGroup[] = [
         href: '/courses/magical-movement',
         img: '/media/library/movement.webp',
         desc: 'Guided movement you can do in your own room — standing, or seated in a chair. No steps to learn.',
-        note: '€49 · self-paced',
+        facts: ['Self-paced', 'Standing or seated'],
         price: 'mmj',
       },
       {
@@ -116,30 +115,19 @@ const groups: CourseGroup[] = [
         href: '/courses/inner-child',
         img: '/media/library/inner-child-glow.webp',
         desc: 'Five gentle sessions of music and mantra — to sing the child you were what they never got to hear.',
-        note: '€29 · 5 sessions',
+        facts: ['5 sessions', 'Self-paced'],
         price: 'inner-child',
       },
     ],
   },
 ];
 
-// Split a note around its EUR price token so the price lives in its own chip —
-// currency-localized, and struck-through + discounted by PriceSync while the
-// launch promo runs. Returns null for cards with no price.
-function priceParts(note: string, price?: MarketingProduct) {
-  if (!price) return null;
-  const token = EUR_COPY_LABEL[price];
-  const at = note.indexOf(token);
-  if (at < 0) return null;
-  return { pre: note.slice(0, at), token, post: note.slice(at + token.length) };
-}
-
 // Course structured data — one Course per card (name + description + provider,
-// plus a price Offer where the note carries one). Helps Google course rich
+// plus its EUR price as an Offer). Helps Google course rich
 // results and AI answer engines enumerate what Songdance offers.
 const coursesLd = coursesJsonLd(
   groups.flatMap((g) =>
-    g.items.map((it) => ({ name: it.label, description: it.desc, href: it.href, price: it.note })),
+    g.items.map((it) => ({ name: it.label, description: it.desc, href: it.href, price: EUR_COPY_LABEL[it.price] })),
   ),
 );
 ---
@@ -161,11 +149,8 @@ const coursesLd = coursesJsonLd(
         <div class="sd-course-group">
           <h2 class="sd-course-group-title">{g.title}</h2>
           <p class="sd-course-group-lede">{g.lede}</p>
-          <div class="sd-course-cards">
-            {g.items.map((it) => {
-              const pp = priceParts(it.note, it.price);
-              const compareStrike = !!it.price && hasCompareStrike(it.price);
-              return (
+          <div class:list={['sd-course-cards', g.items.length % 3 !== 0 && 'sd-course-cards--two']}>
+            {g.items.map((it) => (
               <a class="sd-course-card sd-course-card--media" href={it.href}>
                 <span class="sd-course-card-media">
                   <img src={it.img} alt="" loading="lazy" decoding="async" style={it.pos ? `object-position:${it.pos}` : undefined} />
@@ -174,15 +159,18 @@ const coursesLd = coursesJsonLd(
                 <span class="sd-course-card-body">
                   <span class="sd-course-card-label">{it.label}</span>
                   <span class="sd-course-card-desc">{it.desc}</span>
-                  <span class="sd-course-card-note">
-                    {pp ? (
-                      <Fragment>{pp.pre}<span class="sd-price" data-sd-price={it.price} data-sd-promo-price data-sd-compare={compareStrike ? '' : undefined}>{pp.token}</span>{pp.post}</Fragment>
-                    ) : it.note}
+                  <span class="sd-course-card-facts">
+                    {it.facts.map((f) => <span class="sd-course-card-fact">{f}</span>)}
                   </span>
                 </span>
+                <span class="sd-course-card-foot">
+                  <span class="sd-course-card-price">
+                    <span class="sd-price" data-sd-price={it.price} data-sd-promo-price data-sd-compare={hasCompareStrike(it.price) ? '' : undefined}>{EUR_COPY_LABEL[it.price]}</span>
+                  </span>
+                  <span class="sd-course-card-go" aria-hidden="true">Explore <span class="sd-course-card-arrow">→</span></span>
+                </span>
               </a>
-              );
-            })}
+            ))}
           </div>
         </div>
       ))}
@@ -202,15 +190,29 @@ const coursesLd = coursesJsonLd(
     color: var(--ink-quiet);
   }
 
-  /* Every course card now carries a picture: a column with a full-bleed image
-     on top, then the label / description / price stacked beneath. */
+  /* Four or two cards sit two to a row, so no card is left alone on a row. */
+  .sd-course-cards--two { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 560px) { .sd-course-cards--two { grid-template-columns: 1fr; } }
+
+  /* A card: the picture full-bleed on top, then label / description / facts,
+     and a footer with the price pinned to the bottom so the prices of a row
+     line up whatever the length of the text above them. */
   .sd-course-card--media {
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;
-    padding: 0 0 var(--sp-4);
+    padding: 0;
     gap: 0;
     overflow: hidden;
+    background: var(--paper-soft);
+    transition:
+      border-color var(--d-base) var(--ease),
+      box-shadow var(--d-base) var(--ease),
+      transform var(--d-base) var(--ease);
+  }
+  .sd-course-card--media:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 32px -18px rgba(42, 27, 42, 0.35);
   }
   .sd-course-card-media {
     display: block;
@@ -219,6 +221,7 @@ const coursesLd = coursesJsonLd(
     overflow: hidden;
     background: var(--paper-deep);
   }
+  .sd-course-cards--two .sd-course-card-media { aspect-ratio: 16 / 9; }
   .sd-course-card-flag {
     position: absolute;
     left: var(--sp-3);
@@ -237,7 +240,7 @@ const coursesLd = coursesJsonLd(
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
   .sd-course-card--media:hover .sd-course-card-media img {
     transform: scale(1.04);
@@ -245,21 +248,69 @@ const coursesLd = coursesJsonLd(
   .sd-course-card-body {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: var(--sp-4) var(--sp-4) 0;
+    gap: 10px;
+    padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  }
+  .sd-course-card--media .sd-course-card-label {
+    font-size: clamp(1.35rem, 1.2rem + 0.5vw, 1.6rem);
+    font-weight: 400;
+    line-height: 1.2;
   }
   .sd-course-card-desc {
     font-family: var(--font-body);
     font-size: var(--t-body-sm);
-    line-height: 1.5;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 52ch;
+  }
+  .sd-course-card-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .sd-course-card-fact {
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    background: var(--paper);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    line-height: 1.35;
     color: var(--ink-soft);
   }
-  .sd-course-card--media .sd-course-card-note {
-    white-space: normal;
-    margin-top: 2px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.04em;
+  .sd-course-card-foot {
+    margin-top: auto;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-5) var(--sp-4);
+    border-top: 1px solid var(--line);
+  }
+  .sd-course-card-price {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    color: var(--ink);
+  }
+  .sd-course-card-price :global(.sd-now) { color: var(--ember); font-weight: 500; }
+  .sd-course-card-price :global(.sd-was) { font-size: 0.8em; }
+  .sd-course-card-go {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
     color: var(--ember);
+    white-space: nowrap;
+  }
+  .sd-course-card-arrow {
+    display: inline-block;
+    transition: transform var(--d-base) var(--ease);
+  }
+  .sd-course-card--media:hover .sd-course-card-arrow { transform: translateX(3px); }
+  @media (prefers-reduced-motion: reduce) {
+    .sd-course-card--media,
+    .sd-course-card--media:hover,
+    .sd-course-card--media:hover .sd-course-card-media img,
+    .sd-course-card--media:hover .sd-course-card-arrow { transform: none; }
   }
 </style>
