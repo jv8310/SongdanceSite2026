@@ -1,0 +1,36 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+You were part of CEEE in 2025, and the certification course came with it as a gift for 2026. That access runs until 31 December.
+
+If you would like to keep coming to the live sessions next year, this is the weekend to arrange it. Through Monday 30 November every live pass is 20% off.
+
+A whole year: the 12-month pass is your CEEE for 2027, 48 Q&As and 12 deepening sessions.
+
+Or just one month: feel the connection and the aliveness of the community again, ask your questions, share your sound in a Q&A, or simply get back to the practice. And join a live deepening session with me.
+
+One more thing. The course you received with CEEE 2025 did not include applying for certification. If you wish to apply, you can extend your certification window with any pass: it stays open for as long as the pass runs.
+
+
+
+THE LIVE PASS, 20% OFF (12 months = your CEEE 2027)
+The weekly Q&A, one live hour, and the monthly deepening session, two hours on one theme.
+1 month (4 Q&As, 1 deepening session): EUR 41 instead of EUR 52
+3 months (12 Q&As, 3 deepening sessions): EUR 105 instead of EUR 132
+6 months (24 Q&As, 6 deepening sessions): EUR 187 instead of EUR 234
+12 months (48 Q&As, 12 deepening sessions): EUR 348 instead of EUR 436
+Monthly, cancel any time: EUR 41.60 the first month, EUR 35.20 the second (20% off both), then EUR 44 a month
+Once your address is in, the page shows the day your pass would start.
+Applying for certification: tick "Extend my certification window" on the same page.
+https://songdance.co/courses/live-pass?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=f-ceee251_text&{{prefill}}#lp-buy-title
+
+(The prices are already on the pages, in your own currency. No code needed.)
+
+With love,
+Jacob
+
+P.S. The certification window is an add-on to the pass you choose, and it follows the sale price too.
+
+--
+One email about this.
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

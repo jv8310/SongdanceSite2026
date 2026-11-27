@@ -704,6 +704,14 @@ November"). Jacob, 25 Nov 2026.
   months. **Migration 0103** wrote that version into the drafts (only those still a draft).
   Sent from the site only (no Drip twin, no `in-drip` exclusion). To change words after the
   drafts exist: edit the script, run it, save the draft again (`broadcast_save`).
+- **The seal and the header pictures** (26 Nov 2026): during the sale the hero of the workshop,
+  masterclass (both doors), 12-week, certification and live pass pages carries a round discount
+  seal (`src/components/promo/PromoSeal.astro`, gated like the banner; the homepage has the
+  banner only). Each email opens on a header picture with the seal baked in
+  (`public/email/bfcm/<A-E>-<1-3>.jpg`, made by `docs/emails/bfcm-2026/headers/build.cjs`): the
+  photo on email 1, the paper one on 2 and 3. **A seal or header says percents and names, never
+  a price** (many currencies), and a headline's italic part stands on its own line. Migration
+  0104 wrote the headers into the drafts.
 - **After the sale** nothing needs switching off. To run another sale: move the two
   timestamps, the label, the tag and the scope in `promo.ts`.
 

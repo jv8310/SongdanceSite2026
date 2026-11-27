@@ -5,7 +5,7 @@
 //
 // writes <audience>-<n>-<slug>.html (the broadcast body, format "html") and
 // .txt (its plain-text part) next to this file, and
-// migrations/0103_bfcm_broadcasts_more_content.sql, which writes them into the
+// migrations/0104_bfcm_broadcasts_headers.sql, which writes them into the
 // fifteen DRAFTS that migration 0102 seeded (by name, only while still a draft). Once the drafts exist, a change to
 // the words is made HERE, built, and saved into the draft again (Claude's
 // broadcast_save, format html, with bodyText).
@@ -34,10 +34,11 @@ const PAGES = {
   twelve: ['/courses/12-week', 'register'],
   cert: ['/courses/certification', 'register'],
   pass: ['/courses/live-pass', 'lp-buy-title'],
+  extend: ['/courses/live-pass?extend=1', 'lp-buy-title'],
 };
 const url = (page, content, amp = '&amp;') => {
   const [path, hash] = PAGES[page];
-  return `${SITE}${path}?utm_source=broadcast${amp}utm_medium=email${amp}utm_campaign=bfcm_2026${amp}utm_content=${content}${amp}{{prefill}}#${hash}`;
+  return `${SITE}${path}${path.includes('?') ? amp : '?'}utm_source=broadcast${amp}utm_medium=email${amp}utm_campaign=bfcm_2026${amp}utm_content=${content}${amp}{{prefill}}#${hash}`;
 };
 const HELLO = 'Hello {{ subscriber.first_name | default: "there" }},';
 const UNTIL = 'Monday 30&nbsp;November';
@@ -48,6 +49,8 @@ const b = (t) => `<strong style="font-weight:600;">${t}</strong>`;
 const row = (inner, pad = '0 44px') => `<tr><td class="pad" style="padding:${pad};">${inner}</td></tr>`;
 const strip = (t) =>
   `<tr><td align="center" style="background-color:#2A1B2A;padding:11px 20px;text-align:center;"><p style="margin:0;${F}font-size:11px;letter-spacing:2px;color:#F4ECDF;font-weight:600;text-transform:uppercase;">${t}</p></td></tr>`;
+// The header picture (strip, headline and discount seal in one image, made by
+// headers/build.cjs): email 1 the photo, 2 and 3 the paper one.
 const hero = (src, alt, href) =>
   `<tr><td style="padding:0;"><a href="${href}" style="display:block;"><img src="${SITE}/email/${src}" width="600" alt="${alt}" style="width:100%;height:auto;background-color:#4A3848;"></a></td></tr>`;
 const eyebrow = (t) =>
@@ -201,6 +204,18 @@ const OFFERS = {
     text: `THE LIVE PASS, 20% OFF\nThe weekly Q&A, one live hour, and the monthly deepening session, two hours on one theme.\n1 month (4 Q&As, 1 deepening session): EUR 41 instead of EUR 52\n3 months (12 Q&As, 3 deepening sessions): EUR 105 instead of EUR 132\n6 months (24 Q&As, 6 deepening sessions): EUR 187 instead of EUR 234\n12 months (48 Q&As, 12 deepening sessions): EUR 348 instead of EUR 436\nMonthly, cancel any time: EUR 41.60 the first month, EUR 35.20 the second (20% off both), then EUR 44 a month\n${starts.replace(/&rsquo;/g, "'")}`,
   }),
 };
+// The CEEE 2025 cohort: the year pass first (their "CEEE 2027"), then the rest.
+const ceeePass = (c) => {
+  const o = OFFERS.pass(c, 'Once your address is in, the page shows the day your pass would start.');
+  const [m1, m3, m6, m12, monthly] = o.lines;
+  return {
+    ...o,
+    head: 'Your live sessions for 2027',
+    lines: [['12 months &middot; your CEEE 2027', m12[1], m12[2], m12[3]], m1, m3, m6, monthly],
+    note: 'Applying for certification: tick &ldquo;Extend my certification window&rdquo; on the same page. ' + CUR,
+    text: o.text.replace('THE LIVE PASS, 20% OFF', 'THE LIVE PASS, 20% OFF (12 months = your CEEE 2027)') + '\nApplying for certification: tick "Extend my certification window" on the same page.',
+  };
+};
 const BEGINS_AFTER = 'You already have the foundation, so you take it on its own.';
 const BEGINS_RUNNING = 'It begins when your 12 weeks are over, so nothing overlaps.';
 const PASS_NOW = 'A pass starts the day you buy it.';
@@ -221,7 +236,7 @@ const AUDIENCES = [
     name: 'new: never a workshop or masterclass',
     include: '',
     exclude: 'bfcm:known,bfcm:bought,prod_svh_12w,prod_svh_9m',
-    hero: ['jacob-sounding-heart.jpg', 'Jacob sounding, a hand on his heart'],
+    hero: ['jacob-sounding-heart.jpg', 'Black Friday: 50% off the workshop and the masterclass, through Monday 30 November'],
     eyebrow: 'The workshop &amp; the masterclass',
     offers: (c) => [OFFERS.workshop(c), OFFERS.masterclass(c)],
     emails: [
@@ -271,7 +286,7 @@ const AUDIENCES = [
     name: 'workshop or masterclass, no course yet',
     include: 'bfcm:workshop',
     exclude: 'bfcm:bought,prod_svh_12w,prod_svh_9m',
-    hero: ['svh-circle-sunset.jpg', 'A circle of people sounding together at sunset'],
+    hero: ['svh-circle-sunset.jpg', 'Black Friday: 50% off the 12-week course and the certification, through Monday 30 November'],
     eyebrow: 'The 12-week course &amp; the certification path',
     offers: (c) => [OFFERS.twelve(c), OFFERS.path(c)],
     emails: [
@@ -318,7 +333,7 @@ const AUDIENCES = [
     name: '12-week course finished, no certification',
     include: 'bfcm:12w-ended',
     exclude: 'bfcm:bought,prod_svh_9m',
-    hero: ['svh-retreat-circle-sunset-wide.jpg', 'A circle gathered outdoors at sunset'],
+    hero: ['svh-retreat-circle-sunset-wide.jpg', 'Black Friday: 50% off the certification course, 20% off live passes, through Monday 30 November'],
     eyebrow: 'For those who did the 12 weeks',
     offers: (c) => [OFFERS.cert(c, BEGINS_AFTER), OFFERS.pass(c, PASS_NOW)],
     emails: [
@@ -330,6 +345,7 @@ const AUDIENCES = [
         body: [
           'You did the 12-week course. The materials are still yours, and I hope a tone still finds its way out now and then, in the kitchen or the parked car.',
           'What ended is the live part: the weekly hour together, the questions, hearing each other. Sounding alone is one thing. Being heard changes the sound.',
+          'You can come back for just one month. Feel the connection and the aliveness of the community again, ask your questions, share your sound in a Q&amp;A, or simply get back to the practice. And join a live deepening session with me.',
           `Through ${UNTIL} there are two ways back in, both at a price I don&rsquo;t usually offer.`,
         ],
         ps: 'Not sure which? The pass brings back the live sessions, for one month or a whole year. The certification course brings them back for nine months and teaches you to hold space for someone else.',
@@ -354,6 +370,7 @@ const AUDIENCES = [
         body: [
           'This is my last note about it.',
           'Tonight the certification course goes back to &euro;797 and the live passes to their usual price.',
+          'One month of the live pass is enough to feel the community again: your questions, your sound in a Q&amp;A, a deepening session with me, and the practice back in your week.',
           'If neither is for you now, nothing is lost. Your 12 weeks stay yours, and so does your voice.',
         ],
         ps: 'Tonight means the end of Monday, wherever you are.',
@@ -365,7 +382,7 @@ const AUDIENCES = [
     name: 'on the 12-week course, week 7 to 12',
     include: 'bfcm:12w-late',
     exclude: 'bfcm:bought,prod_svh_9m',
-    hero: ['svh-retreat-circle-sunset-wide.jpg', 'A circle gathered outdoors at sunset'],
+    hero: ['svh-retreat-circle-sunset-wide.jpg', 'Black Friday: 50% off the certification course, 20% off live passes, through Monday 30 November'],
     eyebrow: 'For the second half of your 12 weeks',
     offers: (c) => [OFFERS.cert(c, BEGINS_RUNNING), OFFERS.pass(c, PASS_AFTER)],
     emails: [
@@ -411,7 +428,7 @@ const AUDIENCES = [
     name: 'on the 12-week course, week 1 to 6',
     include: 'bfcm:12w-early',
     exclude: 'bfcm:bought,prod_svh_9m',
-    hero: ['svhgpt-06-holding-space.jpg', 'One person sounding while another holds space'],
+    hero: ['svhgpt-06-holding-space.jpg', 'Black Friday: 50% off the certification course, through Monday 30 November'],
     eyebrow: 'For those who just began the 12 weeks',
     offers: (c) => [OFFERS.cert(c, BEGINS_RUNNING)],
     emails: [
@@ -452,6 +469,30 @@ const AUDIENCES = [
         close: 'See you in the Q&amp;A,',
       },
     ],
+  },
+  {
+    key: 'f-ceee25',
+    name: 'CEEE 2025, no CEEE 2026',
+    include: 'cert:no-certification',
+    exclude: 'bfcm:bought,prod_ceee-26,prod_ceeee-26_monthly,prod_livepass,prod_livepassmonthly',
+    hero: ['', 'Black Friday: 20% off live passes, through Monday 30 November'],
+    eyebrow: 'For the CEEE 2025 circle',
+    offers: (c) => [ceeePass(c)],
+    emails: [
+      {
+        slug: 'your-live-sessions-in-2027',
+        subject: 'Your live sessions in 2027',
+        preheader: 'A year pass at 20% off, or just one month. Through Monday.',
+        h1: `A year of live sessions, ${em('or just a month.')}`,
+        body: [
+          'You were part of CEEE in 2025, and the certification course came with it as a gift for 2026. That access runs until 31&nbsp;December.',
+          `If you would like to keep coming to the live sessions next year, this is the weekend to arrange it. Through ${UNTIL} every live pass is 20% off.`,
+          `${b('A whole year:')} the 12-month pass is your CEEE for 2027, 48 Q&amp;As and 12 deepening sessions.`,
+          `${b('Or just one month:')} feel the connection and the aliveness of the community again, ask your questions, share your sound in a Q&amp;A, or simply get back to the practice. And join a live deepening session with me.`,
+          `One more thing. The course you received with CEEE 2025 did not include applying for certification. If you wish to apply, you can <a href="${url('extend', 'F1_extend')}" style="color:#A14826;">extend your certification window</a> with any pass: it stays open for as long as the pass runs.`,
+        ],
+        ps: 'The certification window is an add-on to the pass you choose, and it follows the sale price too.',
+      },    ],
   },
 ];
 
@@ -610,15 +651,15 @@ for (const [ai, A] of AUDIENCES.entries()) {
     const offers = A.offers(`${c}_cta`);
     const first = offers[0];
     const rows = [
-      strip(STRIP[i]),
-      hero(A.hero[0], A.hero[1], url(first.page, `${c}_hero`)),
+      hero(`bfcm/${String.fromCharCode(65 + ai)}-${n}.jpg`, A.hero[1], url(first.page, `${c}_hero`)),
       row(eyebrow(A.eyebrow) + h1(e.h1) + p(HELLO) + e.body.map((t, j) => p(t, j === e.body.length - 1)).join(''), '44px 44px 6px'),
       ...(MORE[c] ?? []).map(section),
       ...offers.map(offer),
       signoff(e.ps, e.close),
     ];
-    const html = page(plain(e.subject), e.preheader, rows);
-    const text = `${HELLO}
+    const once = (t) => (A.emails.length === 1 ? t.replace('Three emails about this, the last one on Monday.', 'One email about this.') : t);
+    const html = once(page(plain(e.subject), e.preheader, rows));
+    const text = once(`${HELLO}
 
 ${e.body.map(plain).join('\n\n')}
 ${(MORE[c] ?? []).map((m) => `\n\n${sectionText(m)}`).join('')}
@@ -635,11 +676,18 @@ Jacob
 
 P.S. ${plain(e.ps)}
 
-${TEXT_FOOT}`;
+${TEXT_FOOT}`);
     const file = `${A.key}-${n}-${e.slug}`;
     writeFileSync(join(here, `${file}.html`), html);
     writeFileSync(join(here, `${file}.txt`), text);
     const name = `BFCM ${String.fromCharCode(65 + ai)}${n} · ${WHEN[i]} · ${A.name}`;
+    // An audience added after migration 0102 (F) has no draft yet: make it.
+    if (ai >= 5)
+      seeds.push(`-- ${file} (new draft)
+INSERT INTO broadcasts (name, subject, preheader, heading, body, body_text, format, status, audience_include_tags, audience_exclude_tags)
+SELECT ${sqlQuote(name)}, ${sqlQuote(plain(e.subject))}, ${sqlQuote(plain(e.preheader))}, ${sqlQuote(plain(e.h1))}, '', '', 'html', 'draft', ${sqlQuote(A.include)}, ${sqlQuote(A.exclude)}
+ WHERE NOT EXISTS (SELECT 1 FROM broadcasts WHERE name = ${sqlQuote(name)});
+`);
     seeds.push(`-- ${file}
 UPDATE broadcasts
    SET subject = ${sqlQuote(plain(e.subject))},
@@ -654,8 +702,11 @@ UPDATE broadcasts
 }
 
 writeFileSync(
-  join(here, '../../../migrations/0103_bfcm_broadcasts_more_content.sql'),
-  `-- Black Friday 2026: the fifteen broadcast drafts of migration 0102, with more
+  join(here, '../../../migrations/0104_bfcm_broadcasts_headers.sql'),
+  `-- This one: each email opens on its header picture with the discount seal
+-- (public/email/bfcm/, 26 Nov 2026); the words are those of 0103.
+--
+-- Black Friday 2026: the fifteen broadcast drafts of migration 0102, with more
 -- to read in each (sections taken from the pages they lead to, the reminders
 -- most of all), the 12-month live pass and the monthly's sale months (Jacob,
 -- 25 Nov 2026). Only a broadcast that is still a DRAFT is touched: one already

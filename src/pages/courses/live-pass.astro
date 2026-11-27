@@ -24,6 +24,7 @@
 // "The monthly's price"). ?months=monthly picks
 // it; an address that already has one running sees "Manage my monthly pass" instead,
 // which emails the manage link to that address (never shown on screen).
+import PromoSeal from '../../components/promo/PromoSeal.astro';
 import LaunchOfferCallout from '../../components/promo/LaunchOfferCallout.astro';
 import { LIVE_PASS_PROMO_PERCENT } from '../../lib/promo';
 import SiteLayout from '../../components/SiteLayout.astro';
@@ -338,6 +339,7 @@ const faq: { q: string; a: string }[] = [
 
     {/* 1 — The sell: what the pass is and what it opens. */}
     <section class="lp-hero">
+      <PromoSeal percent={LIVE_PASS_PROMO_PERCENT} what="every pass" href="#get" />
       <div class="lp-hero-text">
         <p class="lp-eyebrow">The live pass</p>
         <h1 class="lp-title">Keep sounding with us, <em>live</em></h1>
