@@ -103,7 +103,7 @@
 // only to someone who holds the certification course, and only when its first
 // month reaches past the window they have (monthlyExtensionRefusal).
 
-import { LIVE_PASS_MONTHLY_PROMO_MONTHS, livePassPromoPercent } from '../promo';
+import { LIVE_PASS_MONTHLY_PROMO_MONTHS, LIVE_PASS_MONTHLY_PROMO_FIRST_RATIO, livePassPromoPercent } from '../promo';
 import { formatMoney, type SupportedCurrency } from '../workshops/currency';
 import { businessDayOf, businessWindowUtc } from '../workshops/periods';
 import { albumPriceCents } from '../music/product';
@@ -248,33 +248,36 @@ export function livePassMonthlyRenewalCents(currency: SupportedCurrency, withExt
   return withExtension ? month + monthlyExtensionOn(month, currency) : month;
 }
 
-// The monthly during the site sale (Black Friday 2026): the sale's percent off
-// its first two months — the first month's own price, then the renewal price —
-// and the usual price from the third. Null outside a sale. Exact to the minor
-// unit, not floored: Stripe takes the percent itself (a coupon), PayPal bills
-// these two figures as cycles of their own, and the page prints them.
+// The monthly during the site sale (Black Friday 2026): the first month at the
+// sale price (EUR 40 instead of 52; the same ratio elsewhere, floored to whole
+// units), then the usual price from the second. Null outside a sale. Stripe
+// takes `off_cents` off the first invoice (a coupon), PayPal bills the first
+// month as a cycle of its own, and the page prints it. `second_cents` is only
+// set for a sale whose second month has a price of its own (none now).
 export type LivePassMonthlyPromo = {
   percent: number;
   months: number;
   first_cents: number;
-  second_cents: number;
+  second_cents: number | null;
+  off_cents: number;
 };
 
 export function livePassMonthlyPromo(
   currency: SupportedCurrency,
   nowMs: number = Date.now(),
-  // With the certification-window extension: the percent comes off the prices
-  // that carry it, as the coupon takes it off the whole invoice.
   withExtension = false,
 ): LivePassMonthlyPromo | null {
   const percent = livePassPromoPercent(nowMs);
   if (!percent) return null;
-  const off = (cents: number) => Math.round((cents * (100 - percent)) / 100);
+  const regular = livePassMonthlyFirstCents(currency, withExtension);
+  const first = Math.floor((regular * LIVE_PASS_MONTHLY_PROMO_FIRST_RATIO) / 100 + 1e-9) * 100;
+  if (first <= 0 || first >= regular) return null;
   return {
     percent,
     months: LIVE_PASS_MONTHLY_PROMO_MONTHS,
-    first_cents: off(livePassMonthlyFirstCents(currency, withExtension)),
-    second_cents: off(livePassMonthlyRenewalCents(currency, withExtension)),
+    first_cents: first,
+    second_cents: null,
+    off_cents: regular - first,
   };
 }
 
@@ -285,14 +288,22 @@ export function livePassMonthlyPromo(
 export async function monthlySaleForOrder(
   db: D1Database,
   reg: { id: number; amount_cents: number; bumps: string | null },
-): Promise<{ percent: number; first_cents: number; second_cents: number } | null> {
+): Promise<{ percent: number; first_cents: number; second_cents: number | null } | null> {
   try {
     const row = await db
       .prepare(`SELECT payload FROM events WHERE external_id IN (?1, ?2) LIMIT 1`)
       .bind(`local-course-${reg.id}-monthly`, `local-course-pp-${reg.id}-monthly`)
       .first<{ payload: string | null }>();
-    const percent = Number((row?.payload ? JSON.parse(row.payload) : null)?.promo_percent ?? 0);
+    const payload = row?.payload ? JSON.parse(row.payload) : null;
+    const percent = Number(payload?.promo_percent ?? 0);
     if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return null;
+    // A checkout that wrote its sale prices down says them itself; one from the
+    // first days of the sale (20% off two months, Stripe) is worked out below.
+    const firstSaid = Number(payload?.promo_first_cents);
+    if (Number.isFinite(firstSaid) && firstSaid > 0) {
+      const secondSaid = Number(payload?.promo_second_cents);
+      return { percent, first_cents: firstSaid, second_cents: Number.isFinite(secondSaid) && secondSaid > 0 ? secondSaid : null };
+    }
     const off = (cents: number) => Math.round((cents * (100 - percent)) / 100);
     return {
       percent,

@@ -5,7 +5,7 @@
 //
 // writes <audience>-<n>-<slug>.html (the broadcast body, format "html") and
 // .txt (its plain-text part) next to this file, and
-// migrations/0104_bfcm_broadcasts_headers.sql, which writes them into the
+// migrations/0105_bfcm_broadcasts_monthly_price.sql, which writes them into the
 // fifteen DRAFTS that migration 0102 seeded (by name, only while still a draft). Once the drafts exist, a change to
 // the words is made HERE, built, and saved into the draft again (Claude's
 // broadcast_save, format html, with bodyText).
@@ -197,11 +197,11 @@ const OFFERS = {
       ['3 months', '12 Q&amp;As, 3 deepening sessions', '&euro;132', '&euro;105'],
       ['6 months', '24 Q&amp;As, 6 deepening sessions', '&euro;234', '&euro;187'],
       ['12 months', '48 Q&amp;As, 12 deepening sessions', '&euro;436', '&euro;348'],
-      ['Monthly', 'every session while it runs, cancel any time', '&euro;52, then &euro;44', '&euro;41.60, then &euro;35.20, then &euro;44'],
+      ['Monthly', 'every session while it runs, cancel any time', '&euro;52, then &euro;44', '&euro;40, then &euro;44 a month'],
     ],
     cta: 'Choose a live pass', href: url('pass', c),
-    note: 'The monthly is 20% off for its first two months. ' + CUR,
-    text: `THE LIVE PASS, 20% OFF\nThe weekly Q&A, one live hour, and the monthly deepening session, two hours on one theme.\n1 month (4 Q&As, 1 deepening session): EUR 41 instead of EUR 52\n3 months (12 Q&As, 3 deepening sessions): EUR 105 instead of EUR 132\n6 months (24 Q&As, 6 deepening sessions): EUR 187 instead of EUR 234\n12 months (48 Q&As, 12 deepening sessions): EUR 348 instead of EUR 436\nMonthly, cancel any time: EUR 41.60 the first month, EUR 35.20 the second (20% off both), then EUR 44 a month\n${starts.replace(/&rsquo;/g, "'")}`,
+    note: 'The monthly starts at &euro;40 for its first month. ' + CUR,
+    text: `THE LIVE PASS, 20% OFF\nThe weekly Q&A, one live hour, and the monthly deepening session, two hours on one theme.\n1 month (4 Q&As, 1 deepening session): EUR 41 instead of EUR 52\n3 months (12 Q&As, 3 deepening sessions): EUR 105 instead of EUR 132\n6 months (24 Q&As, 6 deepening sessions): EUR 187 instead of EUR 234\n12 months (48 Q&As, 12 deepening sessions): EUR 348 instead of EUR 436\nMonthly, cancel any time: EUR 40 the first month (instead of EUR 52), then EUR 44 a month\n${starts.replace(/&rsquo;/g, "'")}`,
   }),
 };
 // The CEEE 2025 cohort: the year pass first (their "CEEE 2027"), then the rest.
@@ -702,9 +702,9 @@ UPDATE broadcasts
 }
 
 writeFileSync(
-  join(here, '../../../migrations/0104_bfcm_broadcasts_headers.sql'),
-  `-- This one: each email opens on its header picture with the discount seal
--- (public/email/bfcm/, 26 Nov 2026); the words are those of 0103.
+  join(here, '../../../migrations/0105_bfcm_broadcasts_monthly_price.sql'),
+  `-- This one: the monthly live pass reads EUR 40 the first month, then EUR 44
+-- (Jacob, 27 Nov 2026); everything else as migration 0104 wrote it.
 --
 -- Black Friday 2026: the fifteen broadcast drafts of migration 0102, with more
 -- to read in each (sections taken from the pages they lead to, the reminders
