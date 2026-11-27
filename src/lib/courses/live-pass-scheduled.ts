@@ -134,7 +134,7 @@ async function sendScheduledConfirmation(env: ScheduledEnv, reg: CourseRegistrat
       loginEmail: reg.email,
       startsLabel: fmtDay(startsOn),
       firstMonthLabel: formatMoney(sale ? sale.first_cents : reg.amount_cents + extra, currency),
-      secondMonthLabel: sale ? formatMoney(sale.second_cents, currency) : null,
+      secondMonthLabel: sale && sale.second_cents != null ? formatMoney(sale.second_cents, currency) : null,
       priceLabel: formatMoney(reg.amount_cents, currency),
       coveredUntilLabel: fmtDay(addDays(startsOn, -1)),
       manageUrl: await livePassManageUrlFor(env, reg.id),

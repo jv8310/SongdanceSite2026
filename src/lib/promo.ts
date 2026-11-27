@@ -57,10 +57,14 @@ export const LAUNCH_PROMO_SALE_NAME = 'Black Friday sale';
 // What the live passes (1, 3, 6 and 12 months) come down by while the sale runs.
 export const LIVE_PASS_PROMO_PERCENT = 20;
 
-// The monthly live pass during the sale: this percent off its first months
-// (Jacob, 25 Nov 2026: "first two months 20% off"), for a monthly agreed while
-// the sale runs, also one whose first charge falls later.
-export const LIVE_PASS_MONTHLY_PROMO_MONTHS = 2;
+// The monthly live pass during the sale (Jacob, 27 Nov 2026): its first month
+// at EUR 40 instead of 52, then the usual EUR 44 a month. Other currencies and
+// the certification-window version scale by the same ratio, floored to whole
+// units. For a monthly agreed while the sale runs, also one whose first charge
+// falls later. (25 to 27 Nov it was 20% off the first two months; a monthly
+// agreed then keeps that.)
+export const LIVE_PASS_MONTHLY_PROMO_MONTHS = 1;
+export const LIVE_PASS_MONTHLY_PROMO_FIRST_RATIO = 40 / 52;
 
 // Whether the sale also covers the Grief Course, the Forgiveness Course and the
 // journeys (the launch sale did; Black Friday does not).

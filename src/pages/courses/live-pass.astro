@@ -179,7 +179,7 @@ const offers = LIVE_PASS_MONTHS.map((m) => livePassOffer(m, currency));
 // The monthly: the first month at the full price, every month after it less.
 const monthlyPrices = Object.fromEntries(
   SUPPORTED_CURRENCIES.map((cur) => {
-    // During the site sale: what the first two months come to (20% off each).
+    // During the site sale: the first month at its sale price.
     const sale = livePassMonthlyPromo(cur);
     const saleExt = livePassMonthlyPromo(cur, Date.now(), true);
     return [
@@ -508,7 +508,7 @@ const faq: { q: string; a: string }[] = [
               </div>
             </div>
 
-            <LaunchOfferCallout scope="the live passes of 1, 3, 6 and 12 months" percent={LIVE_PASS_PROMO_PERCENT} note="Already in the prices below. The monthly: its first two months." />
+            <LaunchOfferCallout scope="the live passes of 1, 3, 6 and 12 months" percent={LIVE_PASS_PROMO_PERCENT} note="Already in the prices below. The monthly: a lower first month." />
 
             <div class="lp-toggle" role="group" aria-label="How would you like to pay?">
               <button type="button" class="lp-toggle-btn" data-lp-mode="pass" aria-pressed={startMonthly ? 'false' : 'true'}>
@@ -578,7 +578,7 @@ const faq: { q: string; a: string }[] = [
                   <span class="lp-monthly-price">
                     <span class="lp-monthly-rate"><strong data-lp-monthly-price>{money(monthlyCents)}</strong> <span class="lp-per">a month</span></span>
                     <span class="lp-monthly-first">First month <span data-lp-monthly-first>{money(monthlyFirstCents)}</span><span data-lp-monthly-second-wrap hidden={monthlySecondCents == null}>, second <span data-lp-monthly-second>{monthlySecondCents != null ? money(monthlySecondCents) : ''}</span></span></span>
-                    {monthlySale && <span class="lp-save">Black Friday · first {monthlySale.months} months {monthlySale.percent}% off</span>}
+                    {monthlySale && <span class="lp-save">Black Friday · the first month for less</span>}
                   </span>
                 </label>
               </div>

@@ -1295,20 +1295,28 @@ export type CreateSubscriptionCheckoutInput = {
   coupon?: string;
 };
 
-// Make sure a percent-off coupon that lasts a number of months exists, under an
+// Make sure a coupon that lasts a number of months exists (a percent, or a
+// fixed amount in one currency), under an
 // id of our own, so every checkout that needs it names the same one. Creating
 // one that is already there is Stripe's "resource_already_exists": fine.
 export async function ensureRepeatingCoupon(input: {
   secretKey: string;
   id: string;
   name: string;
-  percent_off: number;
+  percent_off?: number;
+  amount_off?: number; // minor units, with `currency`
+  currency?: string;
   duration_in_months: number;
 }): Promise<void> {
   const form = new URLSearchParams();
   form.set('id', input.id);
   form.set('name', input.name.slice(0, 40));
-  form.set('percent_off', String(input.percent_off));
+  if (input.amount_off && input.currency) {
+    form.set('amount_off', String(input.amount_off));
+    form.set('currency', input.currency);
+  } else {
+    form.set('percent_off', String(input.percent_off ?? 0));
+  }
   form.set('duration', 'repeating');
   form.set('duration_in_months', String(input.duration_in_months));
   const res = await fetch(`${STRIPE_BASE}/coupons`, {

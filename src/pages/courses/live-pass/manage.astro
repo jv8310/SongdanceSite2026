@@ -73,7 +73,9 @@ const price = reg ? formatMoney(reg.amount_cents, (reg.currency || 'EUR').toUppe
 const sale = reg ? await monthlySaleForOrder(env.DB, reg) : null;
 const firstPrice = reg
   ? sale
-    ? `${formatMoney(sale.first_cents, (reg.currency || 'EUR').toUpperCase())}, then ${formatMoney(sale.second_cents, (reg.currency || 'EUR').toUpperCase())} the second month`
+    ? sale.second_cents != null
+      ? `${formatMoney(sale.first_cents, (reg.currency || 'EUR').toUpperCase())}, then ${formatMoney(sale.second_cents, (reg.currency || 'EUR').toUpperCase())} the second month`
+      : formatMoney(sale.first_cents, (reg.currency || 'EUR').toUpperCase())
     : formatMoney(reg.amount_cents + monthlyFirstMonthExtraCents(reg.bumps), (reg.currency || 'EUR').toUpperCase())
   : '';
 const passHref = reg ? `${LIVE_PASS_PAGE_PATH}?email=${encodeURIComponent(reg.email)}#get` : LIVE_PASS_PAGE_PATH;
