@@ -1,46 +1,42 @@
 Hello {{ subscriber.first_name | default: "there" }},
 
-"I can't sing." Good. This isn't singing. We say tone, never note. Trained singers sometimes have the harder start.
+You need an honest one. And that one you already have.
 
-"Someone will hear me." Your microphone stays off unless you want it on. And soft counts. Soft often counts double.
+Before their first workshop, almost everyone tells me one of three things. If one of them is yours, this email is for you.
 
-"What if nothing comes?" Then that is what's there. A closed door has a sound too, and we start with that one.
+"I can't sing."
+Good. This isn't singing. There is no melody to hit and nobody to please. You breathe in and let your body make one tone, the tone of what's there right now. That is the whole instruction. You cannot do it wrong; it will always express something.
 
-Nothing here needs you to be ready. The workshop and the masterclass are half price through Monday 30 November.
+"Someone will hear me."
+Not in the workshop. Your microphone stays off unless you want it on, so the only one who hears your sound is you. And if it is the people at home you are thinking of: that is the most common question in this work. Some people start in their car or their bathroom. Soft counts.
+
+"What if nothing comes?"
+Then that is what's there. A closed door has a sound too, and we start with that one.
+
+Nobody will ask you to scream, and nobody is put on the spot. Nothing here needs you to be ready.
+
+The first sound is the longest. Every one after it is shorter. Through Monday 30 November, a seat for that first one is half price.
 
 
-THE QUESTIONS, ANSWERED PLAINLY
+VOICES FROM THE PRACTICE
 
-- "Do I need to be able to sing?": No. You don't need a good voice, you need your honest one. You cannot do it wrong; it will always express something.
-- "Will I have to scream?": No. We don't go to screaming. One tone, the tone of what's there. That's the whole instruction.
-- "What about the neighbours?": The most common question in this work. Soft counts, and soft often counts double. A hum is a complete practice. Some people start in their car or their bathroom. Your microphone stays off unless you want it on.
-- "Is this a sound bath?": No. In a sound bath someone makes sound for you. Here you are the one sounding. Nobody does it to you, because nobody can.
-- "Is it safe if I'm holding a lot of pain?": The voice will never force you. In our experience it seldom brings up more than you can be with. Seldom is not never, which is why volume is yours to set and stopping is always allowed. And this doesn't replace therapy. It was never intended to.
+"This is a deep immersion into the weave of heart and nervous system. The most beautiful part: there's no need to search for the right words — it's enough to open my mouth."
+Gwenola · coach
 
-AND THE MASTERCLASS: A HUNDRED MINUTES
-
-If you work with people, this is the longer session. First you feel it. Then we look at how it works.
-
-- The practice, in your own body: A guided sounding practice, and the question under the whole method: what is below that? Your own body is the only place this work can be understood from.
-- Why the sound has to be theirs: Most sound work makes sound for you. This is the reverse: the person makes the sound of what's actually there.
-- Your role while they sound: Keep the room steady, ask the next honest question, and get out of the way. Present without fixing, steering, or taking it on.
-- Where it fits in your work, and where it doesn't: It layers onto what you already do; it doesn't replace it. This is not therapy, and it doesn't replace yours.
+"Somatic Vocal Healing is a simple yet natural way to connect with the life within us. I'm grateful for this practice — it's balanced, practical, and so easy to take in."
+Anna · PhD researcher
 
 
 THE WORKSHOP, 50% OFF: EUR 11 instead of EUR 22
 Seventy minutes, live on Zoom: an introduction to Somatic Vocal Healing, a somatic warm-up with live piano, guided sounding, and a first tool for everyday life. Your microphone stays off unless you want it on. Replay included.
 https://songdance.co/workshop?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=a-new2_text&{{prefill}}#register
 
-THE MASTERCLASS, 50% OFF: EUR 22 instead of EUR 44
-A hundred minutes, live on Zoom, for therapists, coaches, bodyworkers, teachers and anyone who holds space. First you feel the practice in your own body. Then how it works, your role while someone sounds, and where it fits in your work.
-https://songdance.co/courses/masterclass?utm_source=broadcast&utm_medium=email&utm_campaign=bfcm_2026&utm_content=a-new2_text&{{prefill}}#register
-
-(The prices are already on the pages, in your own currency. No code needed.)
+(The price is already on the page, in your own currency. No code needed.)
 
 With love,
 Jacob
 
-P.S. Not sure which of the two is yours? If you come for yourself, the workshop. If people come to you with what they carry, the masterclass.
+P.S. You don't have to be free this weekend. Any date on the page counts, also one in a few weeks, as long as you register before Monday night.
 
 --
 Three emails about this, the last one on Monday.

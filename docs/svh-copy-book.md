@@ -1,11 +1,13 @@
 # The Sound of What's There
 ### A short book about Somatic Vocal Healing — and the copy well for the site
 
-*v3 · 17 November 2026 — supersedes v2 (10 June 2026)*
+*v3 · 17 November 2026, revised 28 November 2026 — supersedes v2 (10 June 2026)*
 
-**How to use this file (for Claude Code):** This is the well. Pull headlines, paragraphs, and quotes from here for any page, email, or post. No prices, no program structures live here — only the practice itself. The voice: plain, warm, a little dry, short sentences, one metaphor at a time. Jacob speaking to a circle of people he respects — never a wellness brand. Four guidelines, always: the sound **of** something, never *for* (one named exception, chapter 35) · **acknowledgment before release** — release follows acknowledgment by itself; it is never the method, and "letting go" is never the instruction · **sounding**, not singing — and sounds stay tonal: a tone, a hum, never whispering or breath alone · facilitators **hold space**, the participant heals themselves. No outcome promises, no safety guarantees, no rescue framing, no digs at therapy or therapists. Never name the German "new medicine" school or its founder anywhere, in any string — the exact banned terms are kept in the project brief, not in this file, so a search of the repo stays clean. (Marketing mechanics — discounts, deadlines, seat counters, "X places left", and a measure of genuine urgency — are a separate craft and are allowed in moderation, and only when true: real deadlines, real seat counts, nothing manufactured. This book governs the copy, not the offer.)
+**How to use this file (for Claude Code):** This is the well. Pull headlines, paragraphs, and quotes from here for any page, email, or post. No prices, no program structures live here — only the practice itself. The voice: plain, warm, a little dry, short sentences, one metaphor at a time. Jacob speaking to a circle of people he respects — never a wellness brand. Four guidelines, always: the sound **of** something, never *for* (one named exception, chapter 35) · **acknowledgment before release** — release follows acknowledgment by itself; it is never the method, and "letting go" is never the instruction · **sounding**, not singing — and sounds stay tonal: a tone, never humming, whispering or breath alone · facilitators **hold space**, the participant heals themselves. No outcome promises, no safety guarantees, no rescue framing, no digs at therapy or therapists. Never name the German "new medicine" school or its founder anywhere, in any string — the exact banned terms are kept in the project brief, not in this file, so a search of the repo stays clean. (Marketing mechanics — discounts, deadlines, seat counters, "X places left", and a measure of genuine urgency — are a separate craft and are allowed in moderation, and only when true: real deadlines, real seat counts, nothing manufactured. This book governs the copy, not the offer.)
 
 **Two terms:** *somatic sounding* is the act itself — ask a question, breathe in, and let the body produce a tonal sound without deciding its tone or timbre. *Somatic Vocal Healing* is somatic sounding with a therapeutic framework layered on top, so that what the sounds bring up can be spoken about, reflected on and integrated. In new copy, use the first for the practice and the second for the method and the trainings. Neither is a therapy in itself (chapter 47).
+
+**Two corrections (28 November 2026, Jacob):** humming is not part of this practice. Never offer a hum as a way to do it, as a smaller version of it, or as "a complete practice". And a soft sound counts as a sound, no more: "soft counts double" is not true and is never said. Softer is always allowed (chapter 31); it is not worth more.
 
 **Quote rule:** lines in `>` blockquotes are Jacob's own words, lightly cleaned — safe to attribute to him. Standalone *italic lines* in prose are written in his voice — use them freely as copy, but don't put quotation marks and his name on them. A blockquote that opens with **Participant:** is a participant's words — anonymised, published only with consent, never attributed to Jacob. Never reword a blockquote: trim it at a sentence end or leave it. Several of Jacob's quotes say "Somatic Vocal Healing" where the newer term would be somatic sounding — they are left as spoken. The prose narrator is "we"; "I" appears only inside Jacob's quotes.
 
@@ -600,7 +602,7 @@ So the practice stays humble. We attend to what's actually here, layer by honest
 
 ## 31 · The voice will never force you
 
-*Other headlines:* You set the pace · The careful gatekeeper · Soft counts double · Your rhythm, your tempo · Volume is a dial, not a dare
+*Other headlines:* You set the pace · The careful gatekeeper · Soft counts · Your rhythm, your tempo · Volume is a dial, not a dare
 
 The first safeguard in this work isn't a rule we added. It's how the instrument behaves.
 
@@ -608,11 +610,11 @@ The first safeguard in this work isn't a rule we added. It's how the instrument 
 
 The voice tends to be a careful gatekeeper: in our experience it seldom brings up more than you can be with. Seldom is not never. Deep material can still arrive faster than expected — which is why volume is yours to set, why stopping is always allowed, and why the heavy work belongs in company (chapter 47).
 
-So: softer when something is big, barely a hum if that's the day. Soft counts. Soft often counts double.
+So: softer when something is big, one quiet tone if that's the day. Soft counts.
 
 This is also why we don't override the voice with willpower — no forcing louder, no pushing past a close. A practice built on overriding teaches the body one more time that its signals don't matter. This practice is built on the opposite lesson.
 
-If you yawn — good. If you tremble — good. If the most you can manage today is a hum into a cushion — that was a complete practice.
+If you yawn — good. If you tremble — good. If the most you can manage today is one quiet tone into a cushion — that was a complete practice.
 
 *The voice asks permission.*
 
@@ -658,7 +660,7 @@ Some days you sit down, ask the question, open your mouth — and nothing. Throa
 
 Nothing is broken. Resistance is a guard at a door, and guards exist for reasons. You have options, all of them respectful:
 
-Make the sound *of the resistance itself* — the no has a tone, and it's usually very willing to be heard. Go quieter — a hum counts. Go internal — soundalise it, silently, fully imagined; the body hears it. Or move first: let the body sway, walk, rock, and let sound join the movement later, when it wants to.
+Make the sound *of the resistance itself* — the no has a tone, and it's usually very willing to be heard. Go quieter — a soft tone counts. Go internal — soundalise it, silently, fully imagined; the body hears it. Or move first: let the body sway, walk, rock, and let sound join the movement later, when it wants to.
 
 And sometimes the honest move is to stop for today. The practice will be there tomorrow. So will you.
 
@@ -805,9 +807,9 @@ There's even a strange intimacy in the shared field, named in a moment of group 
 
 A human life is bracketed by two thresholds, and both of them were always accompanied by sound — until recently, until us.
 
-A newborn is welcomed by voices. And the dying, in older traditions, were sounded across: keened, sung, hummed to, accompanied to the very edge by the human instrument. We replaced that with hush, as if quiet were the same as respect.
+A newborn is welcomed by voices. And the dying, in older traditions, were sounded across: keened, sung to, accompanied to the very edge by the human instrument. We replaced that with hush, as if quiet were the same as respect.
 
-It isn't, always. A voice can hold a hand that hands can no longer hold. Tone reaches where conversation has already said goodbye. At a deathbed the sound is soft — a low hum on the out-breath, hardly more. You don't know what to say, so you stop saying, and stay.
+It isn't, always. A voice can hold a hand that hands can no longer hold. Tone reaches where conversation has already said goodbye. At a deathbed the sound is soft — a low tone on the out-breath, hardly more. You don't know what to say, so you stop saying, and stay.
 
 This is old knowledge wearing new clothes. The practice simply gives you back the instrument for it.
 
@@ -1079,7 +1081,7 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 36. Even your defenses deserve to be heard.
 
 **Safety & self**
-37. Soft counts. Soft often counts double.
+37. Soft counts.
 38. Your tempo is the right tempo.
 39. The voice asks permission.
 40. Volume is a dial, not a dare.
@@ -1249,7 +1251,7 @@ So: one tone. Today, in the kitchen, soft as you like. The sound of how it actua
 
 ## Safety & permission — for the hesitant reader
 - The voice will never force you.
-- Soft counts double.
+- Soft counts.
 - Your rhythm, your tempo.
 - Volume is a dial, not a dare.
 - Nobody here will ask you to scream.

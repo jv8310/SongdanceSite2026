@@ -154,7 +154,7 @@ const statusLabel: Record<string, string> = {
           <a href="/admin">Admin</a> <span class="sep">/</span>
           <a href="/admin/broadcasts">Broadcasts</a> <span class="sep">/</span> {b.name}
         </p>
-        <h1>{b.name} <span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status]}</span></h1>
+        <h1><span style="color:var(--adm-mute);font-weight:400;">#{b.id}</span> {b.name} <span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status]}</span></h1>
         <p class="adm-sub">Subject: {b.subject} · {b.format === 'html' ? 'HTML' : 'Simple'} · {b.urgent ? '⚡ urgent — local-time windows ignored' : `window ${b.window_start_hour}:00–${b.window_end_hour}:00 local`}</p>
       </div>
       <div class="adm-actions">

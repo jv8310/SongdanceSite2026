@@ -5,10 +5,20 @@
 //
 // writes <audience>-<n>-<slug>.html (the broadcast body, format "html") and
 // .txt (its plain-text part) next to this file, and
-// migrations/0105_bfcm_broadcasts_monthly_price.sql, which writes them into the
-// fifteen DRAFTS that migration 0102 seeded (by name, only while still a draft). Once the drafts exist, a change to
-// the words is made HERE, built, and saved into the draft again (Claude's
-// broadcast_save, format html, with bodyText).
+// migrations/0106_bfcm_broadcasts_one_header.sql, which writes emails 2 and 3
+// into the DRAFTS that migration 0102 seeded (by name, only while still a
+// draft, and only while its body is the one migration 0105 wrote, so a draft
+// edited by hand in the admin is left alone). Email 1 of every audience was
+// sent on 27 Nov and is not written again. A later change to the words is made
+// HERE, built, and saved into the draft again (Claude's broadcast_save, format
+// html, with bodyText), or by a migration like 0106.
+//
+// ONE HEADER (Jacob, 28 Nov 2026): emails 2 and 3 open on the sale bar, then
+// the email's own headline with the discount seal beside it (`header`; the
+// seals are headers/seals.cjs). Before, a paper picture carrying its own
+// eyebrow and headline stood over the email's eyebrow and headline: two
+// headers. Email 1 keeps its photo. The first-timers' emails (A2, A3) are
+// about the workshop only, never the masterclass.
 //
 // The sale itself is src/lib/promo.ts (50% workshop, masterclass, 12-week,
 // certification, path; 20% live passes of 1, 3 and 6 months; Friday 27 Nov
@@ -56,6 +66,23 @@ const hero = (src, alt, href) =>
 const eyebrow = (t) =>
   `<p style="margin:0 0 22px;${F}font-size:11px;letter-spacing:2.5px;color:#A14826;font-weight:600;text-transform:uppercase;"><span style="display:inline-block;width:26px;height:1px;background-color:#A14826;vertical-align:middle;margin-right:12px;"></span>${t}</p>`;
 const h1 = (t) => `<h1 class="h1" style="${S}font-weight:400;font-size:42px;line-height:1.12;color:#2A1B2A;margin:0 0 28px;">${t}</h1>`;
+// The header of emails 2 and 3: eyebrow and headline as text, the seal beside
+// them. One headline per email, and it is the email's own. The table reads
+// right to left so that on a phone (where the two cells stack) the seal comes
+// first, top right, and the headline gets the whole width under it.
+const h1b = (t) => `<h1 class="h1b" style="${S}font-weight:400;font-size:38px;line-height:1.14;color:#2A1B2A;margin:0 0 28px;">${t}</h1>`;
+const header = ({ eyebrowText, title, seal: [key, alt, two], href }) => {
+  const w = two ? 176 : 160;
+  const k = two ? ' seal-img2' : '';
+  return `<table role="presentation" dir="rtl" width="100%" cellpadding="0" cellspacing="0"><tr><td dir="ltr" class="seal-td" width="${w}" valign="top" align="right" style="width:${w}px;padding:0;vertical-align:top;text-align:right;"><a href="${href}" style="display:block;"><img class="seal-img${k}" src="${SITE}/email/bfcm/seal-${key}.png" width="${w}" alt="${alt}" style="width:${w}px;height:auto;${F}font-size:12px;line-height:1.4;color:#A14826;"></a></td><td dir="ltr" class="hd-td" valign="top" align="left" style="padding:0 14px 0 0;vertical-align:top;text-align:left;">${eyebrow(eyebrowText).replace('<p style="', '<p class="eye" style="')}${h1b(title)}</td></tr></table>`;
+};
+const HEADER_CSS = `.seal-td{display:block!important;width:100%!important;}
+.seal-img{width:100px!important;margin-left:auto!important;}
+.seal-img2{width:112px!important;}
+.hd-td{display:block!important;width:100%!important;padding:0!important;margin-top:-46px!important;}
+.eye{padding-right:112px!important;}
+.h1b{font-size:32px!important;line-height:1.14!important;margin-bottom:22px!important;}
+`;
 const p = (t, last = false) => `<p style="${F}font-size:16px;line-height:1.7;color:#2A1B2A;margin:0 0 ${last ? 0 : 16}px;">${t}</p>`;
 // One offer: a plum box with what it is, the two prices and its button.
 const priceLines = (lines) =>
@@ -69,27 +96,44 @@ const offer = ({ label, head, body, was, now, per = '', lines, cta, href, note }
   `<tr><td class="pad" style="padding:26px 44px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#4A2540;border-radius:4px;"><tr><td class="pad" style="padding:34px 36px 32px;"><p style="margin:0 0 14px;${F}font-size:11px;letter-spacing:2.5px;color:#E7C9B8;font-weight:600;text-transform:uppercase;">${label}</p><h2 class="offer-h" style="${S}font-weight:400;font-size:29px;line-height:1.2;color:#F4ECDF;margin:0 0 14px;">${head}</h2><p style="${F}font-size:15px;line-height:1.7;color:#EADFCB;margin:0 0 18px;">${body}</p>${lines ? priceLines(lines) : `<p style="${S}font-size:30px;line-height:1.2;color:#F4ECDF;margin:0;"><span style="font-size:19px;color:#C9B4C3;text-decoration:line-through;">${was}</span>&nbsp; ${now}<span style="${F}font-size:14px;color:#C9B4C3;"> ${per}</span></p>`}<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 12px;"><tr><td style="background-color:#F4ECDF;border-radius:32px;"><a href="${href}" style="display:inline-block;${F}font-size:15px;font-weight:600;letter-spacing:0.3px;color:#4A2540;padding:15px 32px;text-decoration:none;">${cta} &rarr;</a></td></tr></table><p style="${F}font-size:13px;line-height:1.6;color:#C9B4C3;margin:0;">${note}</p></td></tr></table></td></tr>`;
 // A section between the letter and the offers: a heading, then either titled
 // rows (a list from the course's own page) or paragraphs.
+const itemRows = (items) =>
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #E2D5C1;">${items
+    .map(
+      ([title, body]) =>
+        `<tr><td style="padding:14px 0 15px;border-top:1px solid #E2D5C1;"><p style="${S}font-size:18px;line-height:1.35;color:#2A1B2A;margin:0 0 ${body ? 5 : 0}px;">${title}</p>${body ? `<p style="${F}font-size:15px;line-height:1.65;color:#4A3848;margin:0;">${body}</p>` : ''}</td></tr>`,
+    )
+    .join('')}</table>`;
+const GAP = '<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>';
+// The letter: paragraphs, and where it helps a list of titled rows ({ items }).
+const letter = (parts) =>
+  parts.map((t, j) => (typeof t === 'string' ? p(t, j === parts.length - 1) : itemRows(t.items) + (j === parts.length - 1 ? '' : GAP))).join('');
+const letterText = (parts) =>
+  parts.map((t) => (typeof t === 'string' ? plain(t) : t.items.map(([q, a]) => `${plain(q)}\n${plain(a)}`).join('\n\n'))).join('\n\n');
+// What someone said, as they said it, with their name (from the page's own
+// "Voices from the practice"; never reworded, trimmed at a sentence end).
+const quoteRows = (quotes) =>
+  quotes
+    .map(
+      ([text, who], j) =>
+        `<p style="${C}font-weight:500;font-size:21px;line-height:1.45;color:#2A1B2A;margin:0 0 8px;">&ldquo;${text}&rdquo;</p><p style="${F}font-size:12px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;color:#A14826;margin:0 0 ${j === quotes.length - 1 ? 0 : 24}px;">${who}</p>`,
+    )
+    .join('');
 const h2 = (t) => `<h2 class="offer-h" style="${S}font-weight:400;font-size:27px;line-height:1.22;color:#2A1B2A;margin:0 0 18px;">${t}</h2>`;
-const section = ({ h, intro, items, paras }) =>
+const section = ({ h, intro, items, quotes, paras }) =>
   row(
     h2(h) +
       (intro ? p(intro) : '') +
-      (items
-        ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #E2D5C1;">${items
-            .map(
-              ([title, body]) =>
-                `<tr><td style="padding:14px 0 15px;border-top:1px solid #E2D5C1;"><p style="${S}font-size:18px;line-height:1.35;color:#2A1B2A;margin:0 0 ${body ? 5 : 0}px;">${title}</p>${body ? `<p style="${F}font-size:15px;line-height:1.65;color:#4A3848;margin:0;">${body}</p>` : ''}</td></tr>`,
-            )
-            .join('')}</table>`
-        : '') +
-      (paras ? (items ? '<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>' : '') + paras.map((t, j) => p(t, j === paras.length - 1)).join('') : ''),
+      (items ? itemRows(items) : '') +
+      (quotes ? quoteRows(quotes) : '') +
+      (paras ? (items ? GAP : '') + paras.map((t, j) => p(t, j === paras.length - 1)).join('') : ''),
     '34px 44px 6px',
   );
-const sectionText = ({ h, intro, items, paras }) =>
+const sectionText = ({ h, intro, items, quotes, paras }) =>
   [
     plain(h).toUpperCase(),
     ...(intro ? [plain(intro)] : []),
     ...(items ? [items.map(([t, bd]) => `- ${plain(t)}${bd ? `: ${plain(bd)}` : ''}`).join('\n')] : []),
+    ...(quotes ? quotes.map(([t, who]) => `"${plain(t)}"\n${plain(who)}`) : []),
     ...(paras ? paras.map(plain) : []),
   ].join('\n\n');
 const signoff = (ps, close = 'With love,') =>
@@ -99,7 +143,7 @@ const signoff = (ps, close = 'With love,') =>
   );
 const FOOT = `<tr><td class="pad" style="background-color:#EADFCB;padding:32px 44px 34px;"><img src="https://songdance.co/brand/logo-wordmark-dark.png" width="130" alt="Songdance" style="width:130px;height:auto;margin:0 0 18px;"><p style="${C}font-size:16px;line-height:1.5;color:#7A6A78;margin:0 0 18px;">The sound was always yours.</p><p style="${F}font-size:11px;line-height:1.7;color:#7A6A78;margin:0 0 6px;">Three emails about this, the last one on Monday. Not for you? <a href="{{ unsubscribe_url }}" style="color:#7A6A78;text-decoration:underline;">Unsubscribe</a> and you won&rsquo;t hear from this list again.</p><p style="${F}font-size:11px;line-height:1.7;color:#9A8A78;margin:0;">Songdance BV &middot; Beaupréstraat 13, 8310 Bruges, Belgium<br>BE0743575076</p></td></tr>`;
 
-const page = (title, preheader, rows) => `<!DOCTYPE html>
+const page = (title, preheader, rows, css = '') => `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -119,7 +163,7 @@ a{color:#A14826;text-decoration:none;}
 .pad{padding-left:24px!important;padding-right:24px!important;}
 .h1{font-size:34px!important;line-height:1.14!important;}
 .offer-h{font-size:26px!important;}
-}
+${css}}
 </style>
 </head>
 <body style="margin:0;padding:0;background-color:#EADFCB;-webkit-font-smoothing:antialiased;">
@@ -221,9 +265,10 @@ const BEGINS_RUNNING = 'It begins when your 12 weeks are over, so nothing overla
 const PASS_NOW = 'A pass starts the day you buy it.';
 const PASS_AFTER = 'It starts the day after your course&rsquo;s live sessions end, so you pay for nothing twice.';
 
+// The bar over emails 2 and 3 (email 1 has it inside its photo).
 const STRIP = [
   `Black Friday &middot; through ${UNTIL}`,
-  `Two days left &middot; through ${UNTIL}`,
+  `Black Friday &middot; through ${UNTIL}`,
   'Last day &middot; ends tonight',
 ];
 
@@ -238,6 +283,7 @@ const AUDIENCES = [
     exclude: 'bfcm:known,bfcm:bought,prod_svh_12w,prod_svh_9m',
     hero: ['jacob-sounding-heart.jpg', 'Black Friday: 50% off the workshop and the masterclass, through Monday 30 November'],
     eyebrow: 'The workshop &amp; the masterclass',
+    seal: ['workshop', '50% off the workshop'],
     offers: (c) => [OFFERS.workshop(c), OFFERS.masterclass(c)],
     emails: [
       {
@@ -253,30 +299,54 @@ const AUDIENCES = [
         ],
         ps: 'Any date on the page counts, also one in a few weeks. What matters is that you register before Monday night.',
       },
+      // Emails 2 and 3 for first-timers are about the workshop only (Jacob,
+      // 28 Nov 2026): one offer, no masterclass. Email 2 is one list of what
+      // people say before a first time, no second list of questions under it.
       {
         slug: 'you-dont-need-a-good-voice',
         subject: 'You don’t need a good voice',
-        preheader: 'Three things people tell me before their first workshop. Half price through Monday.',
-        h1: `Three things people tell me ${em('before the first time.')}`,
+        preheader: 'What people tell me before their first workshop. Half price through Monday.',
+        eyebrow: 'The workshop',
+        offers: (c) => [OFFERS.workshop(c)],
+        h1: `You don&rsquo;t need <br>${em('a good voice.')}`,
         body: [
-          `${b('&ldquo;I can&rsquo;t sing.&rdquo;')} Good. This isn&rsquo;t singing. We say tone, never note. Trained singers sometimes have the harder start.`,
-          `${b('&ldquo;Someone will hear me.&rdquo;')} Your microphone stays off unless you want it on. And soft counts. Soft often counts double.`,
-          `${b('&ldquo;What if nothing comes?&rdquo;')} Then that is what&rsquo;s there. A closed door has a sound too, and we start with that one.`,
-          `Nothing here needs you to be ready. The workshop and the masterclass are half price through ${UNTIL}.`,
+          'You need an honest one. And that one you already have.',
+          'Before their first workshop, almost everyone tells me one of three things. If one of them is yours, this email is for you.',
+          {
+            items: [
+              [
+                '&ldquo;I can&rsquo;t sing.&rdquo;',
+                'Good. This isn&rsquo;t singing. There is no melody to hit and nobody to please. You breathe in and let your body make one tone, the tone of what&rsquo;s there right now. That is the whole instruction. You cannot do it wrong; it will always express something.',
+              ],
+              [
+                '&ldquo;Someone will hear me.&rdquo;',
+                'Not in the workshop. Your microphone stays off unless you want it on, so the only one who hears your sound is you. And if it is the people at home you are thinking of: that is the most common question in this work. Some people start in their car or their bathroom. Soft counts.',
+              ],
+              [
+                '&ldquo;What if nothing comes?&rdquo;',
+                'Then that is what&rsquo;s there. A closed door has a sound too, and we start with that one.',
+              ],
+            ],
+          },
+          'Nobody will ask you to scream, and nobody is put on the spot. Nothing here needs you to be ready.',
+          `The first sound is the longest. Every one after it is shorter. Through ${UNTIL}, a seat for that first one is half price.`,
         ],
-        ps: 'Not sure which of the two is yours? If you come for yourself, the workshop. If people come to you with what they carry, the masterclass.',
+        ps: 'You don&rsquo;t have to be free this weekend. Any date on the page counts, also one in a few weeks, as long as you register before Monday night.',
       },
       {
         slug: 'ends-tonight',
         subject: 'Half price ends tonight',
-        preheader: 'The workshop for €11, the masterclass for €22. Last day.',
-        h1: `The last day ${em('at half price.')}`,
+        preheader: 'Your first workshop for €11 instead of €22. Last day.',
+        eyebrow: 'The workshop',
+        offers: (c) => [OFFERS.workshop(c)],
+        h1: `Most of us <br>learned early <br>${em('to be quiet.')}`,
         body: [
-          'This is my last note about it.',
-          'After tonight a workshop seat is &euro;22 again, which is still a fair price for an hour of honesty. But if you were going to come one day anyway, today it is &euro;11.',
-          'One tone is the whole instruction. The rest we do together.',
+          'To stay safe. To belong. To not take up too much space. Over time that becomes a body that&rsquo;s holding a lot. Tension. A tight throat. The feeling that some part of you never quite arrives.',
+          'Nothing in you is broken. It just hasn&rsquo;t been heard for a long time.',
+          'That is all the workshop is: seventy minutes of hearing it. You ask a question your mind can&rsquo;t answer first, you breathe in, and you let your body make one tone. One tone is the whole instruction. The rest we do together.',
+          'This is my last note about the half price. After tonight a seat is &euro;22 again. If you were going to come one day anyway, today it is &euro;11.',
         ],
-        ps: 'Tonight means the end of Monday, wherever you are.',
+        ps: 'Tonight means the end of Monday, wherever you are. And any date on the page counts, also one in a few weeks.',
         close: 'See you in the circle,',
       },
     ],
@@ -288,6 +358,7 @@ const AUDIENCES = [
     exclude: 'bfcm:bought,prod_svh_12w,prod_svh_9m',
     hero: ['svh-circle-sunset.jpg', 'Black Friday: 50% off the 12-week course and the certification, through Monday 30 November'],
     eyebrow: 'The 12-week course &amp; the certification path',
+    seal: ['courses', '50% off both courses'],
     offers: (c) => [OFFERS.twelve(c), OFFERS.path(c)],
     emails: [
       {
@@ -305,12 +376,12 @@ const AUDIENCES = [
       {
         slug: 'which-one-is-yours',
         subject: 'Which one is yours?',
-        preheader: 'For yourself, or to hold space for others. Both half price, two days left.',
-        h1: `For yourself, or ${em('for others too?')}`,
+        preheader: 'For yourself, or to hold space for others. Both half price through Monday.',
+        h1: `For yourself, <br>${em('or for others too?')}`,
         body: [
           `${b('If you want this for yourself:')} the 12-week course. A practice that fits in a kitchen. Twelve modules, a live hour with me every week, and the materials stay yours for life.`,
           `${b('If people already come to you with what they carry:')} the certification path. First the same 12 weeks, because nobody holds space for a sound they haven&rsquo;t made themselves. Then nine months of learning to hold that space. A space holder, not a healer: the person in front of you heals themselves.`,
-          `Both are half price through ${UNTIL}. The twelve weeks of live Q&amp;As start the day you join, and the materials stay yours for life.`,
+          `Both are half price through ${UNTIL}. The twelve weeks of live Q&amp;As start the day you join.`,
         ],
         ps: 'The 12-week course can become the path later. But the path at half price is this weekend.',
       },
@@ -318,7 +389,7 @@ const AUDIENCES = [
         slug: 'ends-tonight',
         subject: 'Half price ends tonight',
         preheader: 'The 12-week course for €275, the certification path for €670. Last day.',
-        h1: `The last day ${em('at half price.')}`,
+        h1: `The last day <br>${em('at half price.')}`,
         body: [
           'This is my last note about it.',
           'If the workshop stayed with you, and a small yes has been waiting, tonight is when the price goes back: the 12-week course to &euro;550, the path to &euro;1,347.',
@@ -335,6 +406,7 @@ const AUDIENCES = [
     exclude: 'bfcm:bought,prod_svh_9m',
     hero: ['svh-retreat-circle-sunset-wide.jpg', 'Black Friday: 50% off the certification course, 20% off live passes, through Monday 30 November'],
     eyebrow: 'For those who did the 12 weeks',
+    seal: ['certification-pass', '50% off the certification course, 20% off live passes', true],
     offers: (c) => [OFFERS.cert(c, BEGINS_AFTER), OFFERS.pass(c, PASS_NOW)],
     emails: [
       {
@@ -353,8 +425,8 @@ const AUDIENCES = [
       {
         slug: 'back-to-the-circle',
         subject: 'Come back to the circle',
-        preheader: 'Two ways back into the live sessions. Two days left.',
-        h1: `You don&rsquo;t have to ${em('do it alone.')}`,
+        preheader: 'Two ways back into the live sessions, both discounted through Monday.',
+        h1: `You don&rsquo;t have to <br>${em('do it alone.')}`,
         body: [
           'A practice kept alone tends to go quiet. Not because anything went wrong. Life is loud, and there is nobody to ask &ldquo;what is below that?&rdquo; when you would rather not look.',
           'In a Q&amp;A somebody else asks the question you didn&rsquo;t know you had. In a deepening session we take two hours for one theme. That is what the live sessions are for.',
@@ -366,7 +438,7 @@ const AUDIENCES = [
         slug: 'ends-tonight',
         subject: 'Both offers end tonight',
         preheader: 'Certification course €395 instead of €797. Live passes 20% off. Last day.',
-        h1: `The last day ${em('for both.')}`,
+        h1: `The last day <br>${em('for both.')}`,
         body: [
           'This is my last note about it.',
           'Tonight the certification course goes back to &euro;797 and the live passes to their usual price.',
@@ -384,6 +456,8 @@ const AUDIENCES = [
     exclude: 'bfcm:bought,prod_svh_9m',
     hero: ['svh-retreat-circle-sunset-wide.jpg', 'Black Friday: 50% off the certification course, 20% off live passes, through Monday 30 November'],
     eyebrow: 'For the second half of your 12 weeks',
+    eyebrow2: 'Your 12 weeks, second half',
+    seal: ['certification-pass', '50% off the certification course, 20% off live passes', true],
     offers: (c) => [OFFERS.cert(c, BEGINS_RUNNING), OFFERS.pass(c, PASS_AFTER)],
     emails: [
       {
@@ -400,8 +474,8 @@ const AUDIENCES = [
       {
         slug: 'what-comes-after-week-twelve',
         subject: 'What comes after week twelve',
-        preheader: 'Go on for nine months, or keep the weekly hour. Two days left.',
-        h1: `After week twelve, ${em('two doors.')}`,
+        preheader: 'Go on for nine months, or keep the weekly hour. Both discounted through Monday.',
+        h1: `After week twelve, <br>${em('two doors.')}`,
         body: [
           `${b('The certification course')} is for you if somewhere in these weeks you thought: I would like to sit with someone else while they do this. Nine months of classes, manuals, Q&amp;As and practice with fellow students. You learn to hold space. The person in front of you heals themselves.`,
           `${b('The live pass')} is for you if you simply want the weekly hour to continue: the Q&amp;As and the monthly deepening session, for as many months as you choose.`,
@@ -413,7 +487,7 @@ const AUDIENCES = [
         slug: 'ends-tonight',
         subject: 'Both offers end tonight',
         preheader: 'Certification course €395 instead of €797. Live passes 20% off. Last day.',
-        h1: `The last day ${em('for both.')}`,
+        h1: `The last day <br>${em('for both.')}`,
         body: [
           'This is my last note about it.',
           'Tonight the certification course goes back to &euro;797 and the live passes to their usual price. Whatever you choose, your 12 weeks go on exactly as they are.',
@@ -430,6 +504,8 @@ const AUDIENCES = [
     exclude: 'bfcm:bought,prod_svh_9m',
     hero: ['svhgpt-06-holding-space.jpg', 'Black Friday: 50% off the certification course, through Monday 30 November'],
     eyebrow: 'For those who just began the 12 weeks',
+    eyebrow2: 'Your 12 weeks, just begun',
+    seal: ['certification', '50% off the certification course'],
     offers: (c) => [OFFERS.cert(c, BEGINS_RUNNING)],
     emails: [
       {
@@ -447,8 +523,8 @@ const AUDIENCES = [
       {
         slug: 'to-hold-space',
         subject: 'A space holder, not a healer',
-        preheader: 'What the certification course is, and who it is for. Half price, two days left.',
-        h1: `A space holder, ${em('not a healer.')}`,
+        preheader: 'What the certification course is, and who it is for. Half price through Monday.',
+        h1: `A space holder, <br>${em('not a healer.')}`,
         body: [
           'A word on what the certification course is, since you are still new here.',
           'In your 12 weeks you learn to make the sound of what is there, for yourself. In the nine months after, you learn to sit with someone else while they do it: to ask the question, to wait, to not take over. Help that doesn&rsquo;t take over. The person in front of you heals themselves.',
@@ -460,7 +536,7 @@ const AUDIENCES = [
         slug: 'ends-tonight',
         subject: 'Half price ends tonight',
         preheader: 'The certification course for €395 instead of €797. Last day.',
-        h1: `The last day ${em('at half price.')}`,
+        h1: `The last day <br>${em('at half price.')}`,
         body: [
           'This is my last note about it.',
           'Tonight the certification course goes back to &euro;797. If you already know, today is the day. If you don&rsquo;t, leave it and enjoy your twelve weeks.',
@@ -506,19 +582,6 @@ const WORKSHOP_BEATS = [
   ['Guided sounding', 'A somatic practice of giving what&rsquo;s here a sound. Not describing it: sounding it.'],
   ['A first tool for everyday life', 'Something to keep coming back to, when something in you is stuck, when your head is too loud, when the day has made you shut down.'],
 ];
-const WORKSHOP_QUESTIONS = [
-  ['&ldquo;Do I need to be able to sing?&rdquo;', 'No. You don&rsquo;t need a good voice, you need your honest one. You cannot do it wrong; it will always express something.'],
-  ['&ldquo;Will I have to scream?&rdquo;', 'No. We don&rsquo;t go to screaming. One tone, the tone of what&rsquo;s there. That&rsquo;s the whole instruction.'],
-  ['&ldquo;What about the neighbours?&rdquo;', 'The most common question in this work. Soft counts, and soft often counts double. A hum is a complete practice. Some people start in their car or their bathroom. Your microphone stays off unless you want it on.'],
-  ['&ldquo;Is this a sound bath?&rdquo;', 'No. In a sound bath someone makes sound for you. Here you are the one sounding. Nobody does it to you, because nobody can.'],
-  ['&ldquo;Is it safe if I&rsquo;m holding a lot of pain?&rdquo;', 'The voice will never force you. In our experience it seldom brings up more than you can be with. Seldom is not never, which is why volume is yours to set and stopping is always allowed. And this doesn&rsquo;t replace therapy. It was never intended to.'],
-];
-const MASTERCLASS_BEATS = [
-  ['The practice, in your own body', 'A guided sounding practice, and the question under the whole method: what is below that? Your own body is the only place this work can be understood from.'],
-  ['Why the sound has to be theirs', 'Most sound work makes sound for you. This is the reverse: the person makes the sound of what&rsquo;s actually there.'],
-  ['Your role while they sound', 'Keep the room steady, ask the next honest question, and get out of the way. Present without fixing, steering, or taking it on.'],
-  ['Where it fits in your work, and where it doesn&rsquo;t', 'It layers onto what you already do; it doesn&rsquo;t replace it. This is not therapy, and it doesn&rsquo;t replace yours.'],
-];
 const TWELVE_ABLE = [
   ['Find and sound a stuck feeling', 'instead of mentally trying to manage it, or waiting for it to pass.'],
   ['Work with your nervous system', 'not against it.'],
@@ -562,18 +625,15 @@ const CERT_NOT = 'A note on what it is not: it is not a comprehensive training t
 const MORE = {
   'a-new1': [{ h: `What happens in ${em('seventy minutes')}`, items: WORKSHOP_BEATS }],
   'a-new2': [
-    { h: `The questions, ${em('answered plainly')}`, items: WORKSHOP_QUESTIONS },
-    { h: `And the masterclass: ${em('a hundred minutes')}`, intro: 'If you work with people, this is the longer session. First you feel it. Then we look at how it works.', items: MASTERCLASS_BEATS },
-  ],
-  'a-new3': [
     {
-      h: `Most of us learned early ${em('to be quiet.')}`,
-      paras: [
-        'To stay safe. To belong. To not take up too much space. Over time that becomes a body that&rsquo;s holding a lot. Tension. A tight throat.',
-        'Nothing in you is broken. It just hasn&rsquo;t been heard yet. That is all the workshop is: seventy minutes of hearing it.',
+      h: `Voices from ${em('the practice')}`,
+      quotes: [
+        ['This is a deep immersion into the weave of heart and nervous system. The most beautiful part: there&rsquo;s no need to search for the right words — it&rsquo;s enough to open my mouth.', 'Gwenola &middot; coach'],
+        ['Somatic Vocal Healing is a simple yet natural way to connect with the life within us. I&rsquo;m grateful for this practice — it&rsquo;s balanced, practical, and so easy to take in.', 'Anna &middot; PhD researcher'],
       ],
     },
   ],
+  'a-new3': [],
   'b-workshop1': [{ h: `After twelve weeks, ${em('you can')}`, items: TWELVE_ABLE }],
   'b-workshop2': [
     { h: `Twelve modules, ${em('one practice')}`, intro: 'What the 12-week course walks through, at your own pace, with a live Q&amp;A every week to bring your questions to:', items: TWELVE_MODULES },
@@ -640,6 +700,19 @@ const plain = (html) =>
     .replace(/&middot;/g, '·')
     .replace(/&amp;/g, '&');
 
+// The length of each body as migration 0105 wrote it (emails 2 and 3).
+const WAS = {
+  'a-new-2-you-dont-need-a-good-voice': 15308,
+  'a-new-3-ends-tonight': 9903,
+  'b-workshop-2-which-one-is-yours': 17568,
+  'b-workshop-3-ends-tonight': 10145,
+  'c-12w-ended-2-back-to-the-circle': 17570,
+  'c-12w-ended-3-ends-tonight': 13868,
+  'd-12w-late-2-what-comes-after-week-twelve': 17349,
+  'd-12w-late-3-ends-tonight': 13258,
+  'e-12w-early-2-to-hold-space': 10243,
+  'e-12w-early-3-ends-tonight': 6941,
+};
 const sqlQuote = (s) => `'${s.replace(/'/g, "''")}'`;
 const WHEN = ['Fri 27 Nov · first notice', 'Sat 28 Nov · reminder', 'Mon 30 Nov · last chance'];
 const seeds = [];
@@ -648,28 +721,39 @@ for (const [ai, A] of AUDIENCES.entries()) {
   for (const [i, e] of A.emails.entries()) {
     const n = i + 1;
     const c = `${A.key}${n}`;
-    const offers = A.offers(`${c}_cta`);
+    const offersOf = e.offers ?? A.offers;
+    const offers = offersOf(`${c}_cta`);
     const first = offers[0];
+    const eye = e.eyebrow ?? (n > 1 ? (A.eyebrow2 ?? A.eyebrow) : A.eyebrow); // eyebrow2: short enough for one line beside the seal
+    // Email 1: the photo, then eyebrow and headline. Emails 2 and 3: the bar,
+    // then ONE header, the email's own headline with the seal beside it.
     const rows = [
-      hero(`bfcm/${String.fromCharCode(65 + ai)}-${n}.jpg`, A.hero[1], url(first.page, `${c}_hero`)),
-      row(eyebrow(A.eyebrow) + h1(e.h1) + p(HELLO) + e.body.map((t, j) => p(t, j === e.body.length - 1)).join(''), '44px 44px 6px'),
+      ...(n === 1
+        ? [
+            hero(`bfcm/${String.fromCharCode(65 + ai)}-${n}.jpg`, A.hero[1], url(first.page, `${c}_hero`)),
+            row(eyebrow(eye) + h1(e.h1) + p(HELLO) + letter(e.body), '44px 44px 6px'),
+          ]
+        : [
+            strip(STRIP[i]),
+            row(header({ eyebrowText: eye, title: e.h1, seal: A.seal, href: url(first.page, `${c}_hero`) }) + p(HELLO) + letter(e.body), '38px 44px 6px'),
+          ]),
       ...(MORE[c] ?? []).map(section),
       ...offers.map(offer),
       signoff(e.ps, e.close),
     ];
     const once = (t) => (A.emails.length === 1 ? t.replace('Three emails about this, the last one on Monday.', 'One email about this.') : t);
-    const html = once(page(plain(e.subject), e.preheader, rows));
+    const html = once(page(plain(e.subject), e.preheader, rows, n === 1 ? '' : HEADER_CSS));
     const text = once(`${HELLO}
 
-${e.body.map(plain).join('\n\n')}
+${letterText(e.body)}
 ${(MORE[c] ?? []).map((m) => `\n\n${sectionText(m)}`).join('')}
 
 
-${A.offers(`${c}_text`)
+${offersOf(`${c}_text`)
   .map((o) => `${o.text}\n${url(o.page, `${c}_text`, '&')}`)
   .join('\n\n')}
 
-(The prices are already on the pages, in your own currency. No code needed.)
+${n > 1 && offers.length === 1 ? '(The price is already on the page, in your own currency. No code needed.)' : '(The prices are already on the pages, in your own currency. No code needed.)'}
 
 ${plain(e.close ?? 'With love,')}
 Jacob
@@ -681,36 +765,38 @@ ${TEXT_FOOT}`);
     writeFileSync(join(here, `${file}.html`), html);
     writeFileSync(join(here, `${file}.txt`), text);
     const name = `BFCM ${String.fromCharCode(65 + ai)}${n} · ${WHEN[i]} · ${A.name}`;
-    // An audience added after migration 0102 (F) has no draft yet: make it.
-    if (ai >= 5)
-      seeds.push(`-- ${file} (new draft)
-INSERT INTO broadcasts (name, subject, preheader, heading, body, body_text, format, status, audience_include_tags, audience_exclude_tags)
-SELECT ${sqlQuote(name)}, ${sqlQuote(plain(e.subject))}, ${sqlQuote(plain(e.preheader))}, ${sqlQuote(plain(e.h1))}, '', '', 'html', 'draft', ${sqlQuote(A.include)}, ${sqlQuote(A.exclude)}
- WHERE NOT EXISTS (SELECT 1 FROM broadcasts WHERE name = ${sqlQuote(name)});
-`);
-    seeds.push(`-- ${file}
+    // Email 1 went out on 27 Nov. Emails 2 and 3 are written into their draft,
+    // and only while its body is still the one migration 0105 wrote (its
+    // length, with or without the last newline): a draft edited by hand in the
+    // admin keeps its words and is saved by hand afterwards.
+    if (n > 1 && WAS[file])
+      seeds.push(`-- ${file}
 UPDATE broadcasts
    SET subject = ${sqlQuote(plain(e.subject))},
        preheader = ${sqlQuote(plain(e.preheader))},
-       heading = ${sqlQuote(plain(e.h1))},
+       heading = ${sqlQuote(plain(e.h1).replace(/\s+/g, ' '))},
        body = ${sqlQuote(html)},
        body_text = ${sqlQuote(text)}
- WHERE name = ${sqlQuote(name)} AND status = 'draft';
+ WHERE name = ${sqlQuote(name)} AND status = 'draft'
+   AND length(body) IN (${WAS[file]}, ${WAS[file] - 1});
 `);
     console.log(name, '·', plain(e.subject));
   }
 }
 
 writeFileSync(
-  join(here, '../../../migrations/0105_bfcm_broadcasts_monthly_price.sql'),
-  `-- This one: the monthly live pass reads EUR 40 the first month, then EUR 44
--- (Jacob, 27 Nov 2026); everything else as migration 0104 wrote it.
+  join(here, '../../../migrations/0106_bfcm_broadcasts_one_header.sql'),
+  `-- Black Friday 2026, emails 2 and 3 of the five audiences (ten drafts): ONE
+-- header instead of two (the sale bar, then the email's own headline with the
+-- discount seal beside it; the paper header picture is gone), and the copy
+-- reviewed (Jacob, 28 Nov 2026). The two for first-timers (A2, A3) are about
+-- the workshop only, never the masterclass, and A2 is one list of what people
+-- say before a first time. No "soft counts double", no humming (copy book,
+-- revised 28 Nov 2026).
 --
--- Black Friday 2026: the fifteen broadcast drafts of migration 0102, with more
--- to read in each (sections taken from the pages they lead to, the reminders
--- most of all), the 12-month live pass and the monthly's sale months (Jacob,
--- 25 Nov 2026). Only a broadcast that is still a DRAFT is touched: one already
--- launched, scheduled or edited into another name keeps what it has.
+-- Only a broadcast that is still a DRAFT is touched, and only while its body
+-- is the one migration 0105 wrote (by its length): a draft edited by hand in
+-- the admin keeps its words.
 --
 -- GENERATED by docs/emails/bfcm-2026/build.mjs (each body is
 -- docs/emails/bfcm-2026/<file>.html, each body_text its .txt). Do not edit

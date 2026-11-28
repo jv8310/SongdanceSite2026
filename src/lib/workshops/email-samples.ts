@@ -738,7 +738,7 @@ function certificationSamples(b: string): EmailSample[] {
   const feedback =
     '**What I saw**\n\nYou took your time with the mandate, and came back to it twice when the session drifted. Your client could feel that the two of you were on the same team.\n\n**What to keep growing**\n\n- Stay with the tone a little longer before you speak.\n- Close with one full breath together.';
   const response =
-    'Thank you for this session. Your presence with your client is warm and steady.\n\n**What I would like you to look at**\n\n- The sounds became breath alone for long stretches. Keep it tonal: a hum is enough.\n- The session went on after the wave had landed. Close when it lands.\n\nRecord a new session with these two in mind, and send it when you are ready.';
+    'Thank you for this session. Your presence with your client is warm and steady.\n\n**What I would like you to look at**\n\n- The sounds became breath alone for long stretches. Keep it tonal: one soft tone is enough.\n- The session went on after the wave had landed. Close when it lands.\n\nRecord a new session with these two in mind, and send it when you are ready.';
   return [
     { id: 'cert_received', group, label: 'Submission received — waiting for review', timing: 'The moment the form on /certification/apply is sent', audience, content: certReceivedEmail({ name: 'maria voss', videoGiven: true }) },
     { id: 'cert_certified', group, label: 'Certified — congratulations', timing: 'When you certify on /admin/certification with the email ticked', audience, content: certCertifiedEmail({ name: 'maria voss', hasCertificate: true, attached: true, feedback }) },
