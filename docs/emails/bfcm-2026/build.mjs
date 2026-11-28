@@ -5,7 +5,7 @@
 //
 // writes <audience>-<n>-<slug>.html (the broadcast body, format "html") and
 // .txt (its plain-text part) next to this file, and
-// migrations/0108_bfcm_broadcasts_pass_box.sql (before it 0106), which writes emails 2 and 3
+// migrations/0109_bfcm_broadcasts_lunch_story.sql (before it 0106, 0108), which writes emails 2 and 3
 // into the DRAFTS that migration 0102 seeded (by name, only while still a
 // draft, and only while its body is the one the last migration wrote, so a draft
 // edited by hand in the admin is left alone). Email 1 of every audience was
@@ -272,6 +272,21 @@ const STRIP = [
   'Last day &middot; ends tonight',
 ];
 
+// ---- the Saturday emails open on a story (Jacob, 28 Nov 2026, from the
+// retreat he is giving that day): what a woman told him at lunch, then what it
+// means for this reader. A first-timer is led to the workshop, someone who has
+// sounded once to the course, a 12-week student to the certification course:
+// to hold space and witness this in someone else. "Today at lunch" is true on
+// the day itself only: sent on another day, the opening line has to change.
+const STORY = [
+  'Today at lunch a woman told me, in tears of joy, how surprised and relieved she is. She can finally listen to her body.',
+  'For years she has been in and out of contact with it, and it has been a struggle. Now she has an easy way to hear her body speak to her, one she can come back to and whose wisdom she can rely on. That was the relief in her tears.',
+  'I&rsquo;m giving a retreat right now. In moments like this, talking with the people here, I&rsquo;m reminded how truly simple and how powerful somatic sounding is.',
+];
+const STORY_SUBJECT = 'Today at lunch';
+const STORY_H1 = `Today at lunch, <br>${em('tears of joy.')}`;
+const WITNESS = 'There is a second joy, and I had it at that lunch table: being there when someone else finds this. That is what the certification course is for: nine months of learning to hold space while another person sounds. You don&rsquo;t heal anyone. They do that themselves. You keep the room steady, ask the next honest question, and witness.';
+
 // ---- the five audiences ----
 // Each email: subject, preheader, h1, paragraphs (HTML), offers, ps, and the
 // same in plain text (paragraphs without markup are derived).
@@ -304,32 +319,15 @@ const AUDIENCES = [
       // people say before a first time, no second list of questions under it.
       {
         slug: 'you-dont-need-a-good-voice',
-        subject: 'You don’t need a good voice',
-        preheader: 'What people tell me before their first workshop. Half price through Monday.',
+        subject: STORY_SUBJECT,
+        preheader: 'What a woman told me at the retreat I’m giving. The workshop is half price through Monday.',
         eyebrow: 'The workshop',
         offers: (c) => [OFFERS.workshop(c)],
-        h1: `You don&rsquo;t need <br>${em('a good voice.')}`,
+        h1: STORY_H1,
         body: [
-          'You need an honest one. And that one you already have.',
-          'Before their first workshop, almost everyone tells me one of three things. If one of them is yours, this email is for you.',
-          {
-            items: [
-              [
-                '&ldquo;I can&rsquo;t sing.&rdquo;',
-                'Good. This isn&rsquo;t singing. There is no melody to hit and nobody to please. You breathe in and let your body make one tone, the tone of what&rsquo;s there right now. That is the whole instruction. You cannot do it wrong; it will always express something.',
-              ],
-              [
-                '&ldquo;Someone will hear me.&rdquo;',
-                'Not in the workshop. Your microphone stays off unless you want it on, so the only one who hears your sound is you. And if it is the people at home you are thinking of: that is the most common question in this work. Some people start in their car or their bathroom. Soft counts.',
-              ],
-              [
-                '&ldquo;What if nothing comes?&rdquo;',
-                'Then that is what&rsquo;s there. A closed door has a sound too, and we start with that one.',
-              ],
-            ],
-          },
-          'Nobody will ask you to scream, and nobody is put on the spot. Nothing here needs you to be ready.',
-          `The first sound is the longest. Every one after it is shorter. Through ${UNTIL}, a seat for that first one is half price.`,
+          ...STORY,
+          'You don&rsquo;t need a retreat to begin. The workshop is seventy minutes, live on Zoom. You ask a question your mind can&rsquo;t answer first, you breathe in, and you let your body make one tone: the tone of what&rsquo;s there, right now. That is where the listening starts.',
+          `If you have never made a sound with us, come and listen to your own body. Through ${UNTIL} a seat is half price.`,
         ],
         ps: 'You don&rsquo;t have to be free this weekend. Any date on the page counts, also one in a few weeks, as long as you register before Monday night.',
       },
@@ -375,13 +373,13 @@ const AUDIENCES = [
       },
       {
         slug: 'which-one-is-yours',
-        subject: 'Which one is yours?',
-        preheader: 'For yourself, or to hold space for others. Both half price through Monday.',
-        h1: `For yourself, <br>${em('or for others too?')}`,
+        subject: STORY_SUBJECT,
+        preheader: 'What a woman told me at the retreat I’m giving. The 12-week course and the certification path, half price through Monday.',
+        h1: STORY_H1,
         body: [
-          `${b('If you want this for yourself:')} the 12-week course. A practice that fits in a kitchen. Twelve modules, a live hour with me every week, and the materials stay yours for life.`,
-          `${b('If people already come to you with what they carry:')} the certification path. First the same 12 weeks, because nobody holds space for a sound they haven&rsquo;t made themselves. Then nine months of learning to hold that space. A space holder, not a healer: the person in front of you heals themselves.`,
-          `Both are half price through ${UNTIL}. The twelve weeks of live Q&amp;As start the day you join.`,
+          ...STORY,
+          'You have sounded with us, in a workshop or a masterclass, so you know the first taste of this. What she was describing is what it is like once it is yours: a way of listening you can come back to on an ordinary day, at home.',
+          `That takes more than one hour. It takes a while, and a map. That is the 12-week course, and through ${UNTIL} it is half price. So is the certification path, for those who want to hold space for others.`,
         ],
         ps: 'The 12-week course can become the path later. But the path at half price is this weekend.',
       },
@@ -424,13 +422,14 @@ const AUDIENCES = [
       },
       {
         slug: 'back-to-the-circle',
-        subject: 'Come back to the circle',
-        preheader: 'Two ways back into the live sessions, both discounted through Monday.',
-        h1: `You don&rsquo;t have to <br>${em('do it alone.')}`,
+        subject: STORY_SUBJECT,
+        preheader: 'What a woman told me at the retreat I’m giving. The certification course at half price, live passes 20% off, through Monday.',
+        h1: STORY_H1,
         body: [
-          'A practice kept alone tends to go quiet. Not because anything went wrong. Life is loud, and there is nobody to ask &ldquo;what is below that?&rdquo; when you would rather not look.',
-          'In a Q&amp;A somebody else asks the question you didn&rsquo;t know you had. In a deepening session we take two hours for one theme. That is what the live sessions are for.',
-          `${b('If you want them back:')} a live pass, 20% off. ${b('If you have been wondering whether you could hold space for others:')} the certification course, half price. Both through ${UNTIL}.`,
+          ...STORY,
+          'You did the twelve weeks, so you know this from the inside: what it is to ask your body and hear it answer.',
+          WITNESS,
+          `It is half price through ${UNTIL}. And if what you miss is simply the live sessions with us, a live pass is 20% off.`,
         ],
         ps: 'A reply to this email reaches us. If you tell us where you are with the practice, we&rsquo;ll tell you honestly which of the two fits.',
       },
@@ -476,13 +475,14 @@ const AUDIENCES = [
       },
       {
         slug: 'what-comes-after-week-twelve',
-        subject: 'What comes after week twelve',
-        preheader: 'Go on for nine months, or keep the weekly hour. Both discounted through Monday.',
-        h1: `After week twelve, <br>${em('two doors.')}`,
+        subject: STORY_SUBJECT,
+        preheader: 'What a woman told me at the retreat I’m giving. And what comes after week twelve, discounted through Monday.',
+        h1: STORY_H1,
         body: [
-          `${b('The certification course')} is for you if somewhere in these weeks you thought: I would like to sit with someone else while they do this. Nine months of classes, manuals, Q&amp;As and practice with fellow students. You learn to hold space. The person in front of you heals themselves.`,
-          `${b('The live pass')} is for you if you simply want the weekly hour to continue: the Q&amp;As and the monthly deepening session, for as many months as you choose.`,
-          `Half price on the first, 20% off the second, through ${UNTIL}. Both start when your 12 weeks are over.`,
+          ...STORY,
+          'You are in your own twelve weeks right now, so some of this may sound familiar.',
+          WITNESS,
+          `${b('The certification course')} begins when your 12 weeks are over, and it is half price through ${UNTIL}. ${b('The live pass')} is for you if you simply want the weekly hour to continue: 20% off, and it also starts when your 12 weeks end.`,
         ],
         ps: 'Not sure? Bring it to this week&rsquo;s Q&amp;A, or reply to this email.',
       },
@@ -525,13 +525,14 @@ const AUDIENCES = [
       },
       {
         slug: 'to-hold-space',
-        subject: 'A space holder, not a healer',
-        preheader: 'What the certification course is, and who it is for. Half price through Monday.',
-        h1: `A space holder, <br>${em('not a healer.')}`,
+        subject: STORY_SUBJECT,
+        preheader: 'What a woman told me at the retreat I’m giving. The certification course, half price through Monday.',
+        h1: STORY_H1,
         body: [
-          'A word on what the certification course is, since you are still new here.',
-          'In your 12 weeks you learn to make the sound of what is there, for yourself. In the nine months after, you learn to sit with someone else while they do it: to ask the question, to wait, to not take over. Help that doesn&rsquo;t take over. The person in front of you heals themselves.',
-          `It is for therapists, coaches and bodyworkers who want this in their work, and for people who simply feel drawn to it. Half price through ${UNTIL}.`,
+          ...STORY,
+          'You have only just begun your twelve weeks, so you are at the start of this yourself. Take your time with it.',
+          WITNESS,
+          `Some people know early that they want to learn that. If that is you: the certification course is half price through ${UNTIL}, and it begins when your 12 weeks are over. If you don&rsquo;t know yet, stay with your own twelve weeks. Your tempo is the right tempo.`,
         ],
         ps: 'You don&rsquo;t need to have finished anything to decide. But you do need your own 12 weeks first, which you are already in.',
       },
@@ -629,16 +630,34 @@ const MORE = {
   'a-new1': [{ h: `What happens in ${em('seventy minutes')}`, items: WORKSHOP_BEATS }],
   'a-new2': [
     {
-      h: `Voices from ${em('the practice')}`,
-      quotes: [
-        ['This is a deep immersion into the weave of heart and nervous system. The most beautiful part: there&rsquo;s no need to search for the right words — it&rsquo;s enough to open my mouth.', 'Gwenola &middot; coach'],
-        ['Somatic Vocal Healing is a simple yet natural way to connect with the life within us. I&rsquo;m grateful for this practice — it&rsquo;s balanced, practical, and so easy to take in.', 'Anna &middot; PhD researcher'],
+      h: `What people tell me ${em('before the first time')}`,
+      items: [
+        [
+          '&ldquo;I can&rsquo;t sing.&rdquo;',
+          'Good. This isn&rsquo;t singing. You don&rsquo;t need a good voice, you need your honest one. There is no melody to hit and nobody to please. You cannot do it wrong; it will always express something.',
+        ],
+        [
+          '&ldquo;Someone will hear me.&rdquo;',
+          'Not in the workshop. Your microphone stays off unless you want it on, so the only one who hears your sound is you. And if it is the people at home you are thinking of: that is the most common question in this work. Some people start in their car or their bathroom. Soft counts.',
+        ],
+        [
+          '&ldquo;What if nothing comes?&rdquo;',
+          'Then that is what&rsquo;s there. A closed door has a sound too, and we start with that one.',
+        ],
       ],
+      paras: ['Nobody will ask you to scream, and nobody is put on the spot. Nothing here needs you to be ready.'],
     },
   ],
   'a-new3': [],
   'b-workshop1': [{ h: `After twelve weeks, ${em('you can')}`, items: TWELVE_ABLE }],
   'b-workshop2': [
+    {
+      h: `For yourself, ${em('or for others too?')}`,
+      paras: [
+        `${b('If you want this for yourself:')} the 12-week course. A practice that fits in a kitchen. Twelve modules, a live hour with me every week from the day you join, and the materials stay yours for life.`,
+        `${b('If people already come to you with what they carry:')} the certification path. First the same 12 weeks, because nobody holds space for a sound they haven&rsquo;t made themselves. Then nine months of learning to hold that space. A space holder, not a healer: the person in front of you heals themselves. And you get to be there when someone finds what she found.`,
+      ],
+    },
     { h: `Twelve modules, ${em('one practice')}`, intro: 'What the 12-week course walks through, at your own pace, with a live Q&amp;A every week to bring your questions to:', items: TWELVE_MODULES },
     { h: `And in the nine months ${em('after')}`, intro: 'The certification path adds the training in holding space for someone else. There you learn:', items: CERT_LEARN },
   ],
@@ -653,8 +672,12 @@ const MORE = {
   ],
   'c-12w-ended1': [{ h: `What the certification course ${em('holds')}`, items: CERT_INCLUDES }],
   'c-12w-ended2': [
-    { h: `What the live sessions ${em('are')}`, items: LIVE_WHAT },
     { h: `What you learn in the ${em('certification course')}`, intro: 'Your 12 weeks were for your own practice. These nine months are about sitting with someone else while they sound:', items: CERT_LEARN, paras: [CERT_NOT] },
+    {
+      h: `You don&rsquo;t have to ${em('do it alone.')}`,
+      intro: 'A practice kept alone tends to go quiet. Not because anything went wrong. Life is loud, and there is nobody to ask &ldquo;what is below that?&rdquo; when you would rather not look. That is what the live sessions are for:',
+      items: LIVE_WHAT,
+    },
   ],
   'c-12w-ended3': [
     {
@@ -688,7 +711,7 @@ const MORE = {
     },
     { h: `What the course ${em('holds')}`, items: CERT_INCLUDES },
   ],
-  'e-12w-early2': [{ h: `What you learn ${em('there')}`, items: CERT_LEARN, paras: [CERT_NOT] }],
+  'e-12w-early2': [{ h: `What you learn ${em('there')}`, intro: 'It is for therapists, coaches and bodyworkers who want this in their work, and for people who simply feel drawn to it.', items: CERT_LEARN, paras: [CERT_NOT] }],
   'e-12w-early3': [],
 };
 
@@ -703,7 +726,7 @@ const plain = (html) =>
     .replace(/&middot;/g, '·')
     .replace(/&amp;/g, '&');
 
-// The length of each body as the last migration wrote it (0106; emails 2 and 3).
+// The length of each body as the last migration wrote it (0108; emails 2 and 3).
 const WAS = {
   'a-new-2-you-dont-need-a-good-voice': 11694,
   'a-new-3-ends-tonight': 8564,
@@ -711,8 +734,8 @@ const WAS = {
   'b-workshop-3-ends-tonight': 11183,
   'c-12w-ended-2-back-to-the-circle': 18697,
   'c-12w-ended-3-ends-tonight': 14955,
-  'd-12w-late-2-what-comes-after-week-twelve': 18466,
-  'd-12w-late-3-ends-tonight': 14335,
+  'd-12w-late-2-what-comes-after-week-twelve': 18467,
+  'd-12w-late-3-ends-tonight': 14336,
   'e-12w-early-2-to-hold-space': 11326,
   'e-12w-early-3-ends-tonight': 8001,
 };
@@ -788,10 +811,12 @@ UPDATE broadcasts
 }
 
 writeFileSync(
-  join(here, '../../../migrations/0108_bfcm_broadcasts_pass_box.sql'),
-  `-- This one: in D2 and D3 (#34, #35) the pass box reads "Keep the live sessions
--- going": those readers are still in their 12 weeks, so "Back into the live
--- sessions" was wrong for them. Everything else as migration 0106 wrote it.
+  join(here, '../../../migrations/0109_bfcm_broadcasts_lunch_story.sql'),
+  `-- This one: the five Saturday emails (A2 #25, B2 #28, C2 #31, D2 #34, E2 #37)
+-- open on what a woman told Jacob at lunch at the retreat he is giving that
+-- day (subject "Today at lunch"), then lead on: first-timers to the workshop,
+-- those who sounded once to the course, 12-week students to the certification
+-- course. The Monday emails are as migration 0108 wrote them.
 --
 -- Black Friday 2026, emails 2 and 3 of the five audiences (ten drafts): ONE
 -- header instead of two (the sale bar, then the email's own headline with the
@@ -802,7 +827,7 @@ writeFileSync(
 -- revised 28 Nov 2026).
 --
 -- Only a broadcast that is still a DRAFT is touched, and only while its body
--- is the one migration 0106 wrote (by its length): a draft edited by hand in
+-- is the one migration 0108 wrote (by its length): a draft edited by hand in
 -- the admin keeps its words.
 --
 -- GENERATED by docs/emails/bfcm-2026/build.mjs (each body is

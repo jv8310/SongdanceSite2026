@@ -1,13 +1,21 @@
 Hello {{ subscriber.first_name | default: "there" }},
 
-A word on what the certification course is, since you are still new here.
+Today at lunch a woman told me, in tears of joy, how surprised and relieved she is. She can finally listen to her body.
 
-In your 12 weeks you learn to make the sound of what is there, for yourself. In the nine months after, you learn to sit with someone else while they do it: to ask the question, to wait, to not take over. Help that doesn't take over. The person in front of you heals themselves.
+For years she has been in and out of contact with it, and it has been a struggle. Now she has an easy way to hear her body speak to her, one she can come back to and whose wisdom she can rely on. That was the relief in her tears.
 
-It is for therapists, coaches and bodyworkers who want this in their work, and for people who simply feel drawn to it. Half price through Monday 30 November.
+I'm giving a retreat right now. In moments like this, talking with the people here, I'm reminded how truly simple and how powerful somatic sounding is.
+
+You have only just begun your twelve weeks, so you are at the start of this yourself. Take your time with it.
+
+There is a second joy, and I had it at that lunch table: being there when someone else finds this. That is what the certification course is for: nine months of learning to hold space while another person sounds. You don't heal anyone. They do that themselves. You keep the room steady, ask the next honest question, and witness.
+
+Some people know early that they want to learn that. If that is you: the certification course is half price through Monday 30 November, and it begins when your 12 weeks are over. If you don't know yet, stay with your own twelve weeks. Your tempo is the right tempo.
 
 
 WHAT YOU LEARN THERE
+
+It is for therapists, coaches and bodyworkers who want this in their work, and for people who simply feel drawn to it.
 
 - To travel through the layers of a sound: How to recognise feelings in a voice (high, low, trembling, sharp), how to follow what is underneath the first sound, and how to guide a whole session from beginning to end.
 - The emotions underneath: Anger, fear, pain and grief. How each one moves, how it disguises itself, and how to meet it through the voice.

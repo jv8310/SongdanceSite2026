@@ -1,11 +1,21 @@
 Hello {{ subscriber.first_name | default: "there" }},
 
-If you want this for yourself: the 12-week course. A practice that fits in a kitchen. Twelve modules, a live hour with me every week, and the materials stay yours for life.
+Today at lunch a woman told me, in tears of joy, how surprised and relieved she is. She can finally listen to her body.
 
-If people already come to you with what they carry: the certification path. First the same 12 weeks, because nobody holds space for a sound they haven't made themselves. Then nine months of learning to hold that space. A space holder, not a healer: the person in front of you heals themselves.
+For years she has been in and out of contact with it, and it has been a struggle. Now she has an easy way to hear her body speak to her, one she can come back to and whose wisdom she can rely on. That was the relief in her tears.
 
-Both are half price through Monday 30 November. The twelve weeks of live Q&As start the day you join.
+I'm giving a retreat right now. In moments like this, talking with the people here, I'm reminded how truly simple and how powerful somatic sounding is.
 
+You have sounded with us, in a workshop or a masterclass, so you know the first taste of this. What she was describing is what it is like once it is yours: a way of listening you can come back to on an ordinary day, at home.
+
+That takes more than one hour. It takes a while, and a map. That is the 12-week course, and through Monday 30 November it is half price. So is the certification path, for those who want to hold space for others.
+
+
+FOR YOURSELF, OR FOR OTHERS TOO?
+
+If you want this for yourself: the 12-week course. A practice that fits in a kitchen. Twelve modules, a live hour with me every week from the day you join, and the materials stay yours for life.
+
+If people already come to you with what they carry: the certification path. First the same 12 weeks, because nobody holds space for a sound they haven't made themselves. Then nine months of learning to hold that space. A space holder, not a healer: the person in front of you heals themselves. And you get to be there when someone finds what she found.
 
 TWELVE MODULES, ONE PRACTICE
 
