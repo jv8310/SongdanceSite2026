@@ -1,16 +1,17 @@
 Hello {{ subscriber.first_name | default: "there" }},
 
-A practice kept alone tends to go quiet. Not because anything went wrong. Life is loud, and there is nobody to ask "what is below that?" when you would rather not look.
+Today at lunch a woman told me, in tears of joy, how surprised and relieved she is. She can finally listen to her body.
 
-In a Q&A somebody else asks the question you didn't know you had. In a deepening session we take two hours for one theme. That is what the live sessions are for.
+For years she has been in and out of contact with it, and it has been a struggle. Now she has an easy way to hear her body speak to her, one she can come back to and whose wisdom she can rely on. That was the relief in her tears.
 
-If you want them back: a live pass, 20% off. If you have been wondering whether you could hold space for others: the certification course, half price. Both through Monday 30 November.
+I'm giving a retreat right now. In moments like this, talking with the people here, I'm reminded how truly simple and how powerful somatic sounding is.
 
+You did the twelve weeks, so you know this from the inside: what it is to ask your body and hear it answer.
 
-WHAT THE LIVE SESSIONS ARE
+There is a second joy, and I had it at that lunch table: being there when someone else finds this. That is what the certification course is for: nine months of learning to hold space while another person sounds. You don't heal anyone. They do that themselves. You keep the room steady, ask the next honest question, and witness.
 
-- The weekly Q&A: A live hour. This is where the smaller, in-between questions are met, where you bring what came up in a practice and we look at it together. Each replay stays available for two months.
-- The monthly deepening session: Two hours on one theme, with the wider community of practitioners.
+It is half price through Monday 30 November. And if what you miss is simply the live sessions with us, a live pass is 20% off.
+
 
 WHAT YOU LEARN IN THE CERTIFICATION COURSE
 
@@ -22,6 +23,13 @@ Your 12 weeks were for your own practice. These nine months are about sitting wi
 - Skills for holding the space: Pacing. Regulation. The volume button. Knowing when to lead, when to hold, and when to let the silence do the work.
 
 A note on what it is not: it is not a comprehensive training to become a therapist, coach or psychologist. It is a course in Somatic Vocal Healing specifically. If you mean to work with clients professionally, you should already have a background in holding space.
+
+YOU DON'T HAVE TO DO IT ALONE.
+
+A practice kept alone tends to go quiet. Not because anything went wrong. Life is loud, and there is nobody to ask "what is below that?" when you would rather not look. That is what the live sessions are for:
+
+- The weekly Q&A: A live hour. This is where the smaller, in-between questions are met, where you bring what came up in a practice and we look at it together. Each replay stays available for two months.
+- The monthly deepening session: Two hours on one theme, with the wider community of practitioners.
 
 
 THE CERTIFICATION COURSE, 50% OFF: EUR 395 instead of EUR 797

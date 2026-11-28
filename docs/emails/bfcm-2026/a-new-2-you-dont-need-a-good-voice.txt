@@ -1,30 +1,23 @@
 Hello {{ subscriber.first_name | default: "there" }},
 
-You need an honest one. And that one you already have.
+Today at lunch a woman told me, in tears of joy, how surprised and relieved she is. She can finally listen to her body.
 
-Before their first workshop, almost everyone tells me one of three things. If one of them is yours, this email is for you.
+For years she has been in and out of contact with it, and it has been a struggle. Now she has an easy way to hear her body speak to her, one she can come back to and whose wisdom she can rely on. That was the relief in her tears.
 
-"I can't sing."
-Good. This isn't singing. There is no melody to hit and nobody to please. You breathe in and let your body make one tone, the tone of what's there right now. That is the whole instruction. You cannot do it wrong; it will always express something.
+I'm giving a retreat right now. In moments like this, talking with the people here, I'm reminded how truly simple and how powerful somatic sounding is.
 
-"Someone will hear me."
-Not in the workshop. Your microphone stays off unless you want it on, so the only one who hears your sound is you. And if it is the people at home you are thinking of: that is the most common question in this work. Some people start in their car or their bathroom. Soft counts.
+You don't need a retreat to begin. The workshop is seventy minutes, live on Zoom. You ask a question your mind can't answer first, you breathe in, and you let your body make one tone: the tone of what's there, right now. That is where the listening starts.
 
-"What if nothing comes?"
-Then that is what's there. A closed door has a sound too, and we start with that one.
+If you have never made a sound with us, come and listen to your own body. Through Monday 30 November a seat is half price.
+
+
+WHAT PEOPLE TELL ME BEFORE THE FIRST TIME
+
+- "I can't sing.": Good. This isn't singing. You don't need a good voice, you need your honest one. There is no melody to hit and nobody to please. You cannot do it wrong; it will always express something.
+- "Someone will hear me.": Not in the workshop. Your microphone stays off unless you want it on, so the only one who hears your sound is you. And if it is the people at home you are thinking of: that is the most common question in this work. Some people start in their car or their bathroom. Soft counts.
+- "What if nothing comes?": Then that is what's there. A closed door has a sound too, and we start with that one.
 
 Nobody will ask you to scream, and nobody is put on the spot. Nothing here needs you to be ready.
-
-The first sound is the longest. Every one after it is shorter. Through Monday 30 November, a seat for that first one is half price.
-
-
-VOICES FROM THE PRACTICE
-
-"This is a deep immersion into the weave of heart and nervous system. The most beautiful part: there's no need to search for the right words — it's enough to open my mouth."
-Gwenola · coach
-
-"Somatic Vocal Healing is a simple yet natural way to connect with the life within us. I'm grateful for this practice — it's balanced, practical, and so easy to take in."
-Anna · PhD researcher
 
 
 THE WORKSHOP, 50% OFF: EUR 11 instead of EUR 22

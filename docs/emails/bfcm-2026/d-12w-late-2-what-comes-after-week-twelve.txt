@@ -1,10 +1,16 @@
 Hello {{ subscriber.first_name | default: "there" }},
 
-The certification course is for you if somewhere in these weeks you thought: I would like to sit with someone else while they do this. Nine months of classes, manuals, Q&As and practice with fellow students. You learn to hold space. The person in front of you heals themselves.
+Today at lunch a woman told me, in tears of joy, how surprised and relieved she is. She can finally listen to her body.
 
-The live pass is for you if you simply want the weekly hour to continue: the Q&As and the monthly deepening session, for as many months as you choose.
+For years she has been in and out of contact with it, and it has been a struggle. Now she has an easy way to hear her body speak to her, one she can come back to and whose wisdom she can rely on. That was the relief in her tears.
 
-Half price on the first, 20% off the second, through Monday 30 November. Both start when your 12 weeks are over.
+I'm giving a retreat right now. In moments like this, talking with the people here, I'm reminded how truly simple and how powerful somatic sounding is.
+
+You are in your own twelve weeks right now, so some of this may sound familiar.
+
+There is a second joy, and I had it at that lunch table: being there when someone else finds this. That is what the certification course is for: nine months of learning to hold space while another person sounds. You don't heal anyone. They do that themselves. You keep the room steady, ask the next honest question, and witness.
+
+The certification course begins when your 12 weeks are over, and it is half price through Monday 30 November. The live pass is for you if you simply want the weekly hour to continue: 20% off, and it also starts when your 12 weeks end.
 
 
 WHAT YOU LEARN IN THOSE NINE MONTHS

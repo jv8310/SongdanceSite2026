@@ -729,6 +729,15 @@ November"). Jacob, 25 Nov 2026.
   (#25, #26, #28, #29, #31, #32, #34, #35, #37, #38), each only while its body was still the one
   0105 wrote (a draft edited by hand is left alone). **A header picture must never repeat what
   the email says under it.**
+- **The Saturday emails open on a story** (28 Nov 2026, Jacob, from the retreat he was giving
+  that day): what a woman told him at lunch, in tears of joy, about finally being able to
+  listen to her body; subject "Today at lunch" on all five (#25, #28, #31, #34, #37; `STORY`
+  and `WITNESS` in `build.mjs`, **migration 0109**). Then each leads on: a first-timer to the
+  workshop ("come and listen to your own body"), someone who sounded once to the 12-week
+  course, a 12-week student to the certification course (to hold space and witness this in
+  someone else). #25 keeps the three things people say before a first time as its second
+  section; the two voices from the workshop page went. The Monday emails are unchanged.
+  "Today at lunch" is true on that day only.
 - **After the sale** nothing needs switching off. To run another sale: move the two
   timestamps, the label, the tag and the scope in `promo.ts`.
 
