@@ -370,8 +370,9 @@ announcement follow.
   `docs/emails/forgiveness-paradox.broadcast.html` + `.txt`: three paradoxes, forgiveness
   *with* the body through the voice, Daniela, the four sessions ("sessions", never "evenings": many readers are in the US, where 19:00 Brussels is the afternoon or morning); its checkout links carry
   `{{ subscriber.email | url_encode }}` so the form arrives filled in. Send one of the two
-  site drafts, never both. The registration box on the page now reads "Not ready to
-  forgive? Come anyway." (it said only "Come anyway.").
+  site drafts, never both. The registration box on the page reads "Whatever you’re carrying,
+  you’re welcome here." (28 Nov 2026, Jacob: "Not ready to forgive? Come anyway." read as a
+  shrug, not a welcome).
 - **Who it is for** (November 2026, Jacob's notes): mostly women of 40–62 carrying a soul
   wound (rejection, abandonment, betrayal, humiliation, injustice; a life she feels trapped in;
   needs never met). The page's **Two doors in** (`FCDoors.astro`, after "Forgiveness is for
