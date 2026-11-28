@@ -1,5 +1,6 @@
 ---
 import { hasAdsAccess } from '../../lib/ads/auth';
+import { dripReadConfig } from '../../lib/contacts/subscriber';
 import { computeAdsDashboard } from '../../lib/ads/dashboard';
 import { syncTodayAdSpend } from '../../lib/ads/meta-insights';
 import {
@@ -77,9 +78,7 @@ const d = await computeAdsDashboard(env.DB, { from, to, money, excludeFutureEven
 // The Forgiveness Course against its own campaigns — the box at the top.
 const forgiveness = await computeForgivenessReport(env.DB, {
   from, to, money,
-  drip: env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID
-    ? { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID }
-    : null,
+  drip: dripReadConfig(env),
 });
 const cmp = compare && cmpFrom && cmpTo
   ? await computeAdsDashboard(env.DB, {

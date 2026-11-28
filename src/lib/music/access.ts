@@ -18,7 +18,7 @@
 //     (/api/music/stream/<track>?e=…&s=…); the stream route only checks the
 //     signature, so seeking (many Range requests) never hammers Drip.
 
-import { getSubscriber } from '../registrations/drip';
+import { lookupSubscriber } from '../contacts/subscriber';
 import { workshopBumpTagsForEmail } from '../workshops/bump';
 import type { MusicAlbumRow } from './db';
 import { hasPaidAlbumRegistration } from './product';
@@ -80,21 +80,19 @@ export function listenerCookieHeader(token: string): string {
 // email, or a Drip error all deny — the player page offers support@ as the
 // human fallback, and admins always pass upstream of this.
 export async function hasAlbumAccess(
-  env: { DRIP_API_TOKEN?: string; DRIP_ACCOUNT_ID?: string },
+  env: { DRIP_API_TOKEN?: string; DRIP_ACCOUNT_ID?: string; DRIP_READS?: string },
   db: D1Database,
   email: string,
   album: Pick<MusicAlbumRow, 'id' | 'drip_tag'>,
 ): Promise<boolean> {
   const tag = (album.drip_tag ?? '').trim().toLowerCase();
-  if (tag && env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID) {
+  if (tag) {
     try {
-      const sub = await getSubscriber(
-        { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
-        email,
-      );
+      // The contact list's tags (Drip's too while it is connected).
+      const { subscriber: sub } = await lookupSubscriber({ ...env, DB: db }, email);
       if ((sub?.tags ?? []).some((t) => (t ?? '').trim().toLowerCase() === tag)) return true;
     } catch (err) {
-      console.warn(`[music-access] drip lookup failed: ${String(err)}`);
+      console.warn(`[music-access] tag lookup failed: ${String(err)}`);
     }
   }
   if (tag && (await workshopBumpTagsForEmail(db, email)).includes(tag)) return true;

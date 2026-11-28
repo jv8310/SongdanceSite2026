@@ -14,7 +14,8 @@
 //      possible. Past live dates the person missed are kept too — their link
 //      lands on the same page's "this session has passed" view, where they can
 //      watch the replay or move onto a new date for free.
-//   2. Drip — the subscriber's tags, to tell whether they hold any product that
+//   2. The tags the contact list holds for them (contacts/subscriber.ts — Drip's
+//      too while Drip is connected), to tell whether they hold any product that
 //      lives in the CiRCLE (courses, journeys, the grief course, …).
 //      Also grabs a first name to greet them. The same tag set decides which
 //      gated music albums (src/lib/music/) the email holds — those come back in
@@ -24,7 +25,7 @@
 // Nothing here writes: it's a read-only "what do you have with us?" probe.
 
 import type { APIRoute } from 'astro';
-import { getSubscriber } from '../../lib/registrations/drip';
+import { lookupSubscriber } from '../../lib/contacts/subscriber';
 import { listCountdownLinksByEmail } from '../../lib/workshops/db';
 import { workshopBumpTagsForEmail } from '../../lib/workshops/bump';
 import { formatInTz } from '../../lib/workshops/time';
@@ -58,16 +59,19 @@ const CIRCLE_PRODUCT_LABELS: Record<string, string> = {
   'prod_Grief-sp': 'The Grief Course',
 };
 
+// The contact list keeps tags lowercased; Drip does not.
+const CIRCLE_LABELS_LOWER = new Map(Object.entries(CIRCLE_PRODUCT_LABELS).map(([k, v]) => [k.toLowerCase(), v]));
+
 function circleProductsFromTags(tags: string[]): { has: boolean; products: string[] } {
   const names = new Set<string>();
   let has = false;
   for (const raw of tags) {
     const t = (raw ?? '').trim();
-    if (!t || t === 'prod_access') continue;
-    const isProduct = t.startsWith('prod_') || t.toLowerCase().includes('vsh');
+    if (!t || t.toLowerCase() === 'prod_access') continue;
+    const isProduct = t.toLowerCase().startsWith('prod_') || t.toLowerCase().includes('vsh');
     if (!isProduct) continue;
     has = true;
-    const label = CIRCLE_PRODUCT_LABELS[t];
+    const label = CIRCLE_LABELS_LOWER.get(t.toLowerCase());
     if (label) names.add(label);
   }
   return { has, products: [...names] };
@@ -138,17 +142,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     console.warn(`[access-lookup] countdown lookup failed: ${String(err)}`);
   }
 
-  // 2. Drip subscriber → CiRCLE products + first name. Best-effort: if Drip is
-  //    unreachable we simply report no products rather than failing the lookup.
+  // 2. What the contact list (and Drip, while connected) holds → CiRCLE products
+  //    + first name. Best-effort: a failed read reports no products.
   let circle = { has: false, products: [] as string[] };
   let firstName: string | undefined;
   let subscriberTags: string[] = [];
-  if (env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID) {
+  {
     try {
-      const sub = await getSubscriber(
-        { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
-        email,
-      );
+      const { subscriber: sub } = await lookupSubscriber(env, email);
       if (sub) {
         subscriberTags = sub.tags ?? [];
         circle = circleProductsFromTags(subscriberTags);

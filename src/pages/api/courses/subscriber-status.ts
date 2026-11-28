@@ -18,7 +18,7 @@
 // than blocking the visitor — better to show *some* offer than nothing.
 
 import type { APIRoute } from 'astro';
-import { getSubscriber } from '../../../lib/registrations/drip';
+import { lookupSubscriber } from '../../../lib/contacts/subscriber';
 import {
   currencyForCountry,
   isSupportedCurrency,
@@ -106,10 +106,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   try {
-    const sub = await getSubscriber(
-      { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
-      email,
-    );
+    const { subscriber: sub } = await lookupSubscriber(env, email);
     const decision = decideVariant(sub, {
       coursePortalUrl: env.SVH_CERT_PORTAL_URL,
       currency,

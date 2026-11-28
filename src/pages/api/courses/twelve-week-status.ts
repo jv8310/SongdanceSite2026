@@ -39,7 +39,7 @@ import {
 import type { Currency } from '../../../lib/courses/variant';
 import { buildCertificationPathPricing } from '../../../lib/courses/path';
 import type { EffectiveDiscount } from '../../../lib/courses/twelve-week';
-import { getSubscriber } from '../../../lib/registrations/drip';
+import { lookupSubscriber } from '../../../lib/contacts/subscriber';
 import { eligibleBumpOffers } from '../../../lib/courses/bumps';
 import { deckGiftStatus, DECK_GIFT_INACTIVE } from '../../../lib/courses/deck-promo';
 
@@ -79,10 +79,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Best-effort, kicked off concurrently with the DB lookups: read the
     // buyer's Drip tags so we only offer order bumps for products they don't
     // already own. `null` (Drip unreachable OR unknown email) → offer all.
-    const subPromise = getSubscriber(
-      { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
-      email,
-    ).catch(() => null);
+    const subPromise = lookupSubscriber(env, email).then(
+      (r) => r.subscriber,
+      () => null,
+    );
 
     const links = await listSecuredWorkshopLinksByEmail(env.DB, email);
     const replayAnchors = await listReplayViewAnchorsByEmail(env.DB, email);

@@ -207,6 +207,18 @@ export async function listSubscribersByTag(
 // One page of the whole subscriber list by mailing status, for the contact-list
 // sync (contacts/drip-sync.ts). `deliverable` is false when Drip has flagged
 // the address (hard bounce, complaint) while the status still reads active.
+// Drip's custom fields as plain strings; anything that isn't a value is left out.
+function customFieldsOf(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (v == null || typeof v === 'object') continue;
+    const val = String(v).trim();
+    if (val) out[k] = val;
+  }
+  return out;
+}
+
 export type DripListedSubscriber = DripSubscriber & { status?: string; deliverable?: boolean };
 
 export async function listSubscribersPage(
@@ -238,8 +250,10 @@ export async function listSubscribersPage(
       last_name: str(s.last_name),
       country: str(s.country),
       time_zone: str(s.time_zone),
+      phone: str(s.phone),
       tags: Array.isArray(s.tags) ? (s.tags as unknown[]).map((t) => String(t)) : [],
-      custom_fields: {},
+      custom_fields: customFieldsOf(s.custom_fields),
+      created_at: str(s.created_at),
       status: str(s.status),
       deliverable: typeof s.deliverable === 'boolean' ? s.deliverable : undefined,
     });

@@ -15,7 +15,13 @@
 //   • an active subscriber Drip has flagged undeliverable goes on the
 //     suppression list (reason 'bounced', source 'drip');
 //   • every UNSUBSCRIBED subscriber goes on the suppression list (reason
-//     'unsubscribe', source 'drip'), whether or not they are a contact.
+//     'unsubscribe', source 'drip') and becomes a contact too, with the same
+//     name, tags and custom fields: they still own what they bought, and the
+//     site reads ownership from this list (contacts/subscriber.ts) so Drip can
+//     be cancelled. A suppressed contact is never mailed.
+// Both phases also merge Drip's custom fields into the contact's `custom` JSON
+// (Drip's value wins for a key it holds; the CSV's other columns stay) and keep
+// when Drip first saw the person as `drip_created_at`.
 // It never lifts a suppression and never deletes anything, so a run can only
 // add people and add do-not-mail rows. Someone active in Drip but suppressed
 // here (they unsubscribed or bounced on the site's side) stays suppressed, and
@@ -32,6 +38,8 @@ import { normalizeTimezone } from '../broadcasts/db';
 
 const STATE_KEY = 'drip_contact_sync';
 const CHUNK = 400; // rows per json_each statement
+const CONTACT_CHUNK = 100; // contact rows carry their custom fields: smaller statements
+const MAX_FIELD = 500; // longest custom field value kept
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Prefixes the site computes itself: a Drip tag may never write into them.
 const RESERVED = ['app:', 'cert:', 'bfcm:'];
@@ -43,6 +51,7 @@ export type DripSyncCounts = {
   created: number; // contacts that did not exist before
   undeliverable: number; // active in Drip, flagged undeliverable → suppressed
   unsubscribedSeen: number;
+  unsubscribedCreated?: number; // unsubscribed in Drip and not on this list before (kept, never mailed)
   suppressionsAdded: number; // new do-not-mail rows (undeliverable + unsubscribed)
   // Active and deliverable in Drip, but on the site's do-not-mail list: by reason.
   activeButSuppressed: Record<string, number>;
@@ -67,6 +76,7 @@ const emptyCounts = (): DripSyncCounts => ({
   created: 0,
   undeliverable: 0,
   unsubscribedSeen: 0,
+  unsubscribedCreated: 0,
   suppressionsAdded: 0,
   activeButSuppressed: {},
 });
@@ -81,9 +91,9 @@ export async function dripSyncState(db: D1Database): Promise<DripSyncState> {
   return { run: null, last: null, error: null };
 }
 
-function chunks<T>(rows: T[]): T[][] {
+function chunks<T>(rows: T[], size = CHUNK): T[][] {
   const out: T[][] = [];
-  for (let i = 0; i < rows.length; i += CHUNK) out.push(rows.slice(i, i + CHUNK));
+  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
   return out;
 }
 
@@ -121,6 +131,82 @@ async function countIn(db: D1Database, table: 'contacts' | 'email_suppressions',
   return n;
 }
 
+/** Drip's custom fields as the contact's `custom` JSON keeps them. */
+function customOf(s: DripListedSubscriber): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(s.custom_fields ?? {})) {
+    const key = k.trim();
+    if (!key || key.length > 80) continue;
+    out[key] = v.length > MAX_FIELD ? v.slice(0, MAX_FIELD) : v;
+  }
+  if (s.phone && !out.phone) out.phone = s.phone;
+  if (s.created_at) out.drip_created_at = s.created_at;
+  return out;
+}
+
+// The contact rows, their tags and the display column, for subscribers keyed
+// by clean email. An existing contact only gets a missing name / timezone /
+// country; its custom JSON takes Drip's fields over its own for the same key.
+function contactStatements(db: D1Database, subs: Map<string, DripListedSubscriber>): D1PreparedStatement[] {
+  const statements: D1PreparedStatement[] = [];
+  const rows = [...subs.entries()].map(([e, s]) => ({
+    e,
+    n: nameOf(s),
+    z: normalizeTimezone(s.time_zone),
+    c: s.country ?? null,
+    j: JSON.stringify(customOf(s)),
+  }));
+  const oldCustom = `CASE WHEN json_valid(contacts.custom) THEN contacts.custom ELSE '{}' END`;
+  for (const part of chunks(rows, CONTACT_CHUNK)) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO contacts (email, name, timezone, country, custom, source)
+             SELECT json_extract(value, '$.e'), json_extract(value, '$.n'), json_extract(value, '$.z'),
+                    json_extract(value, '$.c'), json_extract(value, '$.j'), 'drip'
+               FROM json_each(?1) WHERE 1
+           ON CONFLICT(email) DO UPDATE SET
+             name = COALESCE(contacts.name, excluded.name),
+             timezone = COALESCE(contacts.timezone, excluded.timezone),
+             country = COALESCE(contacts.country, excluded.country),
+             custom = json_patch(${oldCustom}, excluded.custom),
+             updated_at = datetime('now')
+           WHERE (contacts.name IS NULL AND excluded.name IS NOT NULL)
+              OR (contacts.timezone IS NULL AND excluded.timezone IS NOT NULL)
+              OR (contacts.country IS NULL AND excluded.country IS NOT NULL)
+              OR COALESCE(contacts.custom, '') != json_patch(${oldCustom}, excluded.custom)`,
+        )
+        .bind(JSON.stringify(part)),
+    );
+  }
+  const pairs: Array<[string, string]> = [];
+  for (const [e, s] of subs) for (const t of dripTagsForContact(s.tags)) pairs.push([e, t]);
+  for (const part of chunks(pairs)) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO contact_tags (email, tag)
+             SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?1)`,
+        )
+        .bind(JSON.stringify(part)),
+    );
+  }
+  // The display column follows the normalized tags, only where it is behind.
+  for (const part of chunks([...subs.keys()])) {
+    statements.push(
+      db
+        .prepare(
+          `UPDATE contacts
+              SET tags = (SELECT group_concat(tag, ', ') FROM (SELECT tag FROM contact_tags t WHERE t.email = contacts.email ORDER BY tag))
+            WHERE email IN (SELECT value FROM json_each(?1))
+              AND COALESCE(tags, '') != COALESCE((SELECT group_concat(tag, ', ') FROM (SELECT tag FROM contact_tags t WHERE t.email = contacts.email ORDER BY tag)), '')`,
+        )
+        .bind(JSON.stringify(part)),
+    );
+  }
+  return statements;
+}
+
 async function applyActivePage(db: D1Database, subs: DripListedSubscriber[], run: DripSyncRun): Promise<void> {
   const good = new Map<string, DripListedSubscriber>();
   const bad = new Set<string>();
@@ -152,58 +238,7 @@ async function applyActivePage(db: D1Database, subs: DripListedSubscriber[], run
     }
   }
 
-  const statements: D1PreparedStatement[] = [];
-  const rows = [...good.entries()].map(([e, s]) => ({
-    e,
-    n: nameOf(s),
-    z: normalizeTimezone(s.time_zone),
-    c: s.country ?? null,
-  }));
-  for (const part of chunks(rows)) {
-    statements.push(
-      db
-        .prepare(
-          `INSERT INTO contacts (email, name, timezone, country, source)
-             SELECT json_extract(value, '$.e'), json_extract(value, '$.n'), json_extract(value, '$.z'),
-                    json_extract(value, '$.c'), 'drip'
-               FROM json_each(?1) WHERE 1
-           ON CONFLICT(email) DO UPDATE SET
-             name = COALESCE(contacts.name, excluded.name),
-             timezone = COALESCE(contacts.timezone, excluded.timezone),
-             country = COALESCE(contacts.country, excluded.country),
-             updated_at = datetime('now')
-           WHERE (contacts.name IS NULL AND excluded.name IS NOT NULL)
-              OR (contacts.timezone IS NULL AND excluded.timezone IS NOT NULL)
-              OR (contacts.country IS NULL AND excluded.country IS NOT NULL)`,
-        )
-        .bind(JSON.stringify(part)),
-    );
-  }
-  const pairs: Array<[string, string]> = [];
-  for (const [e, s] of good) for (const t of dripTagsForContact(s.tags)) pairs.push([e, t]);
-  for (const part of chunks(pairs)) {
-    statements.push(
-      db
-        .prepare(
-          `INSERT OR IGNORE INTO contact_tags (email, tag)
-             SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?1)`,
-        )
-        .bind(JSON.stringify(part)),
-    );
-  }
-  // The display column follows the normalized tags, only where it is behind.
-  for (const part of chunks(goodEmails)) {
-    statements.push(
-      db
-        .prepare(
-          `UPDATE contacts
-              SET tags = (SELECT group_concat(tag, ', ') FROM (SELECT tag FROM contact_tags t WHERE t.email = contacts.email ORDER BY tag))
-            WHERE email IN (SELECT value FROM json_each(?1))
-              AND COALESCE(tags, '') != COALESCE((SELECT group_concat(tag, ', ') FROM (SELECT tag FROM contact_tags t WHERE t.email = contacts.email ORDER BY tag)), '')`,
-        )
-        .bind(JSON.stringify(part)),
-    );
-  }
+  const statements = contactStatements(db, good);
   for (const part of chunks(badEmails)) {
     statements.push(
       db
@@ -221,9 +256,17 @@ async function applyActivePage(db: D1Database, subs: DripListedSubscriber[], run
 }
 
 async function applyUnsubscribedPage(db: D1Database, subs: DripListedSubscriber[], run: DripSyncRun): Promise<void> {
-  const emails = [...new Set(subs.map((s) => cleanEmail(s.email)).filter((e): e is string => !!e))];
+  const byEmail = new Map<string, DripListedSubscriber>();
+  for (const s of subs) {
+    const e = cleanEmail(s.email);
+    if (e) byEmail.set(e, s);
+  }
+  const emails = [...byEmail.keys()];
   run.unsubscribedSeen += emails.length;
   const before = await countIn(db, 'email_suppressions', emails);
+  const contactsBefore = await countIn(db, 'contacts', emails);
+  // Do-not-mail first, in the same batch as the contact rows, so a new contact
+  // never exists for a moment without its suppression.
   const statements = chunks(emails).map((part) =>
     db
       .prepare(
@@ -232,8 +275,10 @@ async function applyUnsubscribedPage(db: D1Database, subs: DripListedSubscriber[
       )
       .bind(JSON.stringify(part)),
   );
+  statements.push(...contactStatements(db, byEmail));
   if (statements.length) await db.batch(statements);
   run.suppressionsAdded += emails.length - before;
+  run.unsubscribedCreated = (run.unsubscribedCreated ?? 0) + (emails.length - contactsBefore);
 }
 
 export type DripSyncStep = { ok: true; done: boolean; state: DripSyncState } | { ok: false; message: string; state: DripSyncState };

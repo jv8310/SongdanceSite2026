@@ -10,7 +10,8 @@
 // message instead of a generic network error.
 
 import type { APIRoute } from 'astro';
-import { getSubscriber, upsertSubscriber } from '../../../lib/registrations/drip';
+import { upsertSubscriber } from '../../../lib/registrations/drip';
+import { lookupSubscriber } from '../../../lib/contacts/subscriber';
 import { logEvent } from '../../../lib/registrations/db';
 
 export const prerender = false;
@@ -41,14 +42,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Guardrail: only activate for subscribers who actually own the cert
     // course. Anyone else hitting this endpoint shouldn't be able to flip
     // their prod_SVH_week.
-    const sub = await getSubscriber(dripCfg, email);
+    const { subscriber: sub } = await lookupSubscriber(env, email);
     if (!sub) {
       return json(
         { error: 'We could not find that email in our system.' },
         404,
       );
     }
-    if (!sub.tags.includes('prod_SVH_9m')) {
+    if (!sub.tags.some((t) => t.toLowerCase() === 'prod_svh_9m')) {
       return json(
         {
           error:
@@ -58,7 +59,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    await upsertSubscriber(dripCfg, {
+    // The week counter only ever meant something to Drip's workflow; without
+    // Drip there is nothing to move (the certification opens in the app).
+    if (!dripCfg.apiToken || !dripCfg.accountId) {
+      return json({ error: 'Early activation is no longer needed: write to support@songdance.co.' }, 410);
+    }
+    await upsertSubscriber(dripCfg as { apiToken: string; accountId: string }, {
       email,
       custom_fields: { prod_SVH_week: '12' },
     });

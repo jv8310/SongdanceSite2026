@@ -80,9 +80,11 @@ const HELD_WORDS: Record<string, string> = {
       <p class="ct-help">
         Copies every <strong>active</strong> Drip subscriber onto this list (a new
         contact when missing; an existing one only gets a missing name, timezone or
-        country and Drip's tags added to its own) and puts everyone
+        country and Drip's tags added to its own, Drip's custom fields with them) and puts everyone
         <strong>unsubscribed or undeliverable in Drip</strong> on the do-not-mail
-        list. It never removes anyone and never lifts a do-not-mail. It also runs by
+        list. The unsubscribed are kept on this list too, with their tags, never
+        mailed: they still own what they bought, and the course pages, /access and
+        the app read that from here. It never removes anyone and never lifts a do-not-mail. It also runs by
         itself, a few pages every hour, starting again each day.
       </p>
       {drip.last ? (
@@ -92,7 +94,7 @@ const HELD_WORDS: Record<string, string> = {
           <strong>{drip.last.created.toLocaleString()}</strong> of them were not on this list and were added,
           {' '}{drip.last.undeliverable.toLocaleString()} flagged undeliverable by Drip,
           {' '}{drip.last.unsubscribedSeen.toLocaleString()} unsubscribed in Drip
-          ({drip.last.suppressionsAdded.toLocaleString()} new on the do-not-mail list).
+          ({drip.last.suppressionsAdded.toLocaleString()} new on the do-not-mail list{drip.last.unsubscribedCreated != null && <>, {drip.last.unsubscribedCreated.toLocaleString()} newly kept on this list with their tags</>}).
           {dripHeldTotal > 0 && (
             <>
               {' '}<strong>{dripHeldTotal.toLocaleString()}</strong> are active in Drip but not mailed from here:

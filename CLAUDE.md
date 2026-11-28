@@ -3229,6 +3229,42 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   edits reach recipients not yet sent. Stats label broadcasts by their real name
   (`/admin/emails/stats` looks the name up from the id).
 
+## Drip — on its way out, and nothing reads it but this lookup
+
+Marketing left Drip on 25 Nov 2026 and the course emails on 20 Oct; Jacob wants
+the account cancelled (28 Nov 2026). Everything that used to **ask Drip about a
+person** now asks [`src/lib/contacts/subscriber.ts`](src/lib/contacts/subscriber.ts)
+(`lookupSubscriber`): the contact row, its tags and its `custom` JSON, with
+Drip's own answer merged in **only while Drip is connected** (tags added, its
+custom fields preferred). Callers: the certification / 12-week offers
+(`subscriber-status`, `twelve-week-status`, the German check in `checkout`),
+`bump-offers`, `/access`, album access (`hasAlbumAccess`), early activation, and
+the new/returning split (`course-buyers.ts`, whose Drip cache stays but is no
+longer needed: with Drip off the contact list is the whole answer and nothing
+counts as unread). **Tags on the contact list are lowercased**, so every one of
+those compares tags without regard to case (`decideVariant` included); a new
+caller must too.
+
+- **The contact list holds everyone Drip holds**: the daily copy
+  (`drip-sync.ts`) brings every active subscriber **and every unsubscribed one**
+  (those stay on `email_suppressions` and are never mailed), with Drip's tags
+  and custom fields merged into `custom` (Drip's value wins per key, the CSV's
+  other columns stay) and `drip_created_at`. The unsubscribed are kept because
+  they still own what they bought.
+- **The newsletter form** (`/api/newsletter`) writes the contact (tags
+  `newsletter` / `forgiveness course waitlist`, no `in-drip`), Drip only as an
+  extra; a do-not-mail row is not lifted by signing up again.
+- **`DRIP_READS = off`** (a var, not a secret) stops every Drip read while the
+  token stays for the writes, to try the site-only answer before cancelling.
+  Removing `DRIP_API_TOKEN` stops reads and writes alike: every write (purchase
+  tags, events, orders, unsubscribes, end dates) is already best-effort.
+- **Left before cancelling**: a full CSV export of Drip kept as an archive; the
+  member app's first-sign-in Drip probe moved to the site's contact tags (its
+  `import_contact_tags` already reads them); the Songdeck welcome (Shopify →
+  Drip, "Songdeck Account Welcome") and the two Zapier webhooks on Drip tags.
+  `prod_ASJ` was paused on 28 Nov 2026, so an ASJ buyer keeps `prod_ASJ` and no
+  longer gets `prod_ASJ_end` (nothing on the site reads it).
+
 ## Music albums — buyer-only mantra players
 
 Gated audio albums (e.g. the mantra album sold as a checkout bump), managed at

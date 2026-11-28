@@ -40,6 +40,9 @@ export type MirrorContactInput = {
   // Provenance for a newly-created contact (kept, never overwritten on an
   // existing row): 'workshop-order' | 'course-order' | 'retreat-order' | …
   source?: string;
+  // Stamp the buyer-only `in-drip` marker (default). Off for a sign-up that
+  // bought nothing, such as the newsletter form.
+  markInDrip?: boolean;
 };
 
 // Trim, lowercase, dedupe, drop blanks — the same per-tag rule the CSV import
@@ -66,7 +69,7 @@ export async function writeContactTags(
   // so every purchase-mirrored contact is flagged as also-in-Drip (and therefore
   // excludable from broadcasts). normalizeContactTags de-dupes, so re-runs and a
   // contact that already carries it are no-ops.
-  const tags = normalizeContactTags([...input.tags, IN_DRIP_TAG]);
+  const tags = normalizeContactTags(input.markInDrip === false ? input.tags : [...input.tags, IN_DRIP_TAG]);
   const name = (input.name ?? '').trim() || null;
   const timezone = normalizeTimezone(input.timezone);
   const country = (input.country ?? '').trim() || null;

@@ -9,7 +9,7 @@
 // open). Display only — the checkout prices whatever is ticked itself.
 
 import type { APIRoute } from 'astro';
-import { getSubscriber } from '../../../lib/registrations/drip';
+import { lookupSubscriber } from '../../../lib/contacts/subscriber';
 import { eligibleBumpOffers } from '../../../lib/courses/bumps';
 import { currencyForCountry, isSupportedCurrency, type SupportedCurrency } from '../../../lib/workshops/currency';
 
@@ -29,7 +29,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
   const c = currencyForCountry((payload.country ?? '').trim().toUpperCase());
   const currency: SupportedCurrency = isSupportedCurrency(c) ? c : 'EUR';
-  const sub = await getSubscriber({ apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID }, email).catch(
+  const sub = await lookupSubscriber(env, email).then(
+    (r) => r.subscriber,
     () => null,
   );
   return json({ currency, bumps: eligibleBumpOffers(currency, sub ? sub.tags : null) });

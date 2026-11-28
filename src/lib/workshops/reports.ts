@@ -54,6 +54,7 @@
 // isolate died mid-send, stranding a `pending` row) is reclaimed by a later tick
 // once it goes stale — so a dropped report is retried, never lost for the day.
 
+import { dripReadConfig } from '../contacts/subscriber';
 import {
   computeStats,
   computeCourseSales,
@@ -96,12 +97,11 @@ export type ReportEnv = {
   // Absent → the split rests on the site's orders and the contact list.
   DRIP_API_TOKEN?: string;
   DRIP_ACCOUNT_ID?: string;
+  DRIP_READS?: string;
 };
 
-const dripOf = (env: ReportEnv): DripConfig | null =>
-  env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID
-    ? { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID }
-    : null;
+// Drip, while it is connected and its reads are on (contacts/subscriber.ts).
+const dripOf = (env: ReportEnv): DripConfig | null => dripReadConfig(env);
 
 const DEFAULT_RECIPIENT = 'jacob@songdance.co';
 const DEFAULT_BASE_URL = 'https://songdance.co';

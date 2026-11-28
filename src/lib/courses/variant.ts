@@ -373,10 +373,12 @@ export function decideVariant(
     phone: subscriber.phone || undefined,
   };
 
-  const tags = new Set(subscriber.tags ?? []);
-  const has = (t: string) => tags.has(t);
+  // Case-blind: the contact list keeps tags lowercased, Drip does not.
+  const tags = new Set((subscriber.tags ?? []).map((t) => t.trim().toLowerCase()));
+  const has = (t: string) => tags.has(t.toLowerCase());
   const hasAnyStartingWith = (prefix: string) => {
-    for (const t of tags) if (t.startsWith(prefix)) return true;
+    const p = prefix.toLowerCase();
+    for (const t of tags) if (t.startsWith(p)) return true;
     return false;
   };
   // Legacy "VSH" (Vocal Sound Healing — the trainings offered before the SVH

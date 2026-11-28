@@ -26,6 +26,10 @@
 // list a day or more before the order (a Drip subscriber, or a contact row) —
 // a new customer, but not a stranger.
 //
+// Without Drip connected (DRIP_API_TOKEN removed, or DRIP_READS = off) the
+// contact list is the whole answer: the daily copy keeps every Drip subscriber
+// there, unsubscribed ones included, with their tags and first-seen date.
+//
 // Drip is asked once per order and the answer kept in `events`
 // (`course-buyer-drip-<order id>`), so no page or report calls Drip twice for
 // an order. An order Drip could not be read for is classified on the rest and
@@ -165,8 +169,10 @@ export async function classifyCourseBuyers(
           `SELECT lower(email) AS email, tag FROM contact_tags WHERE lower(email) IN (${p})`),
       ),
       safe(() =>
-        byEmails<{ email: string; created_at: string }>(db, emails, (p) =>
-          `SELECT email, created_at FROM contacts WHERE email IN (${p})`),
+        byEmails<{ email: string; created_at: string; drip_since: string | null }>(db, emails, (p) =>
+          `SELECT email, created_at,
+                  json_extract(CASE WHEN json_valid(custom) THEN custom END, '$.drip_created_at') AS drip_since
+             FROM contacts WHERE email IN (${p})`),
       ),
       safe(async () =>
         (await db
@@ -225,9 +231,11 @@ export async function classifyCourseBuyers(
         }),
       );
     }
-  } else {
+  } else if (opts.drip) {
     dripUnread += missing.length;
   }
+  // Without Drip the contact list is the whole answer (it holds Drip's copy,
+  // unsubscribed people included), so nothing counts as unread.
 
   // --- per address ------------------------------------------------------------
   const group = <T extends { email: string }>(rows: T[]) => {
@@ -244,7 +252,11 @@ export async function classifyCourseBuyers(
   const ledgerOf = group(ledgerRows);
   const retreatsOf = group(retreatRows);
   const tagsOf = group(tagRows);
-  const contactSince = new Map(contactRows.map((c) => [c.email, c.created_at]));
+  // When the list first knew them: Drip's own first-seen date where the copy
+  // kept it (a contact made by the copy is younger than the subscriber).
+  const contactSince = new Map(
+    contactRows.map((c) => [c.email, c.drip_since && ms(c.drip_since) < ms(c.created_at) ? c.drip_since : c.created_at]),
+  );
   const workshopBumpTags = bumpTagRows.map((b) => (b.drip_tag || `prod_${b.slug}`).toLowerCase());
   const albumTag = new Map(albumRows.map((a) => [String(a.id), a.drip_tag.toLowerCase()]));
 

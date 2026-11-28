@@ -60,7 +60,7 @@ import {
   type Offer,
   type Variant,
 } from '../../../lib/courses/variant';
-import { getSubscriber } from '../../../lib/registrations/drip';
+import { lookupSubscriber } from '../../../lib/contacts/subscriber';
 import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../../../lib/promo';
 import {
   buildCertificationPathPricing,
@@ -300,10 +300,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     let germanGrad = false;
     if (sourceVariant === 'G') {
       try {
-        const sub = await getSubscriber(
-          { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
-          email,
-        );
+        const { subscriber: sub } = await lookupSubscriber(env, email);
         germanGrad = decideVariant(sub, { currency }).variant === 'G';
       } catch {
         germanGrad = false;
