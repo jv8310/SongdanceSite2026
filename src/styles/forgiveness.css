@@ -1262,8 +1262,21 @@ html, body { background: var(--paper); }
 .fc-bump-point::before { content: "✓"; position: absolute; left: 0; color: var(--ember-soft); font-size: 11px; }
 .fc-bump-blurb { font-family: var(--font-body); font-size: 12.5px; line-height: 1.5; color: rgba(244,236,223,0.6); }
 @media (max-width: 520px) {
-  .fc-bump { grid-template-columns: auto 1fr; }
+  /* The picture sits beside the title and price; the points and the blurb
+     run underneath it at the card's full width, so the card stays short. */
+  .fc-bump { grid-template-columns: auto auto minmax(0, 1fr); column-gap: 12px; row-gap: 10px; }
+  .fc-bump-thumb { width: 48px; height: 48px; grid-row: 1; grid-column: 2; }
+  .fc-bump-body { display: contents; }
+  .fc-bump-head { grid-row: 1; grid-column: 3; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 4px; align-self: center; }
+  .fc-bump-points, .fc-bump-blurb { grid-column: 2 / -1; }
+  .fc-bump-points { flex-direction: column; gap: 4px; }
+  .fc-bump-price { white-space: normal; line-height: 1.6; }
+  .fc-bump-save { display: inline-block; margin-left: 0; }
+}
+@media (max-width: 340px) {
+  /* The narrowest phones leave the card about 190px: no room for a picture. */
   .fc-bump-thumb { display: none; }
+  .fc-bump-head { grid-column: 2 / -1; }
 }
 
 .fc-consent {
