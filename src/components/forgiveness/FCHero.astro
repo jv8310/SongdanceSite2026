@@ -1,11 +1,10 @@
 ---
 interface Props {
   open: boolean;
-  priceLabel: string;
   datesLabel: string;
   sessionHours: number;
 }
-const { open, priceLabel, datesLabel, sessionHours } = Astro.props;
+const { open, datesLabel, sessionHours } = Astro.props;
 ---
 
 <section class="fc-hero" id="top">
@@ -28,7 +27,7 @@ const { open, priceLabel, datesLabel, sessionHours } = Astro.props;
       Honoring what the words alone never reached.
     </p>
     <a href="#register" class="fc-hero-cta">
-      {open ? `Register — ${priceLabel}` : 'About the course'} <i class="ph-light ph-arrow-right"></i>
+      {open ? 'Register' : 'About the course'} <i class="ph-light ph-arrow-right"></i>
     </a>
     <div class="fc-hero-meta">
       <span>{datesLabel} · {sessionHours} hours each</span>

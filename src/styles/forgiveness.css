@@ -1262,8 +1262,8 @@ html, body { background: var(--paper); }
 .fc-bump-point::before { content: "✓"; position: absolute; left: 0; color: var(--ember-soft); font-size: 11px; }
 .fc-bump-blurb { font-family: var(--font-body); font-size: 12.5px; line-height: 1.5; color: rgba(244,236,223,0.6); }
 @media (max-width: 520px) {
-  .fc-bump { grid-template-columns: auto 1fr; }
-  .fc-bump-thumb { display: none; }
+  .fc-bump { gap: 10px; }
+  .fc-bump-thumb { width: 48px; height: 48px; }
 }
 
 .fc-consent {
