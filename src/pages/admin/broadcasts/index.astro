@@ -91,7 +91,7 @@ const fmtSched = (s: string | null): string | null => {
             {rows.map(({ b, counts, stats }) => (
               <tr>
                 <td>
-                  <strong>{b.name}</strong>
+                  <strong><span class="bc-id">#{b.id}</span> {b.name}</strong>
                   {b.subject && b.subject !== b.name && <span class="bc-subj">{b.subject}</span>}
                 </td>
                 <td>
@@ -275,6 +275,8 @@ const fmtSched = (s: string | null): string | null => {
     .bc-table tr:last-child td { border-bottom: none; }
     .bc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
     .bc-table td strong { display: block; }
+    /* The broadcast's number, as Claude and the stats name it ("#25"). */
+    .bc-id { color: var(--adm-mute); font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 4px; }
     .bc-subj { display: block; font-size: 12.5px; color: #6f5f6d; margin-top: 2px; }
     .bc-rowactions { white-space: nowrap; }
     .bc-rowactions .bc-dup, .bc-rowactions .bc-del { margin-left: 6px; }

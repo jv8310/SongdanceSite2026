@@ -234,7 +234,7 @@ ${TEXT_FOOT}`,
       ),
       panel('Ho&rsquo;oponopono, sounded', 'I&rsquo;m sorry.', 'The first of four old Hawaiian phrases. Said, it&rsquo;s an apology. Sounded, it becomes something else: the grief that was never allowed to flow.'),
       row(
-        p('You don&rsquo;t have to tell anyone what it was. Not us, not the group. You can stay muted the whole time. Soft counts, and a hum is a complete practice.', true),
+        p('You don&rsquo;t have to tell anyone what it was. Not us, not the group. You can stay muted the whole time. Soft counts, and one quiet tone is a complete practice.', true),
         '26px 44px 0',
       ),
       offer(n, `Feel unforgivable? ${paleEm('Come anyway.')}`, FACTS, 'Join the four sessions'),
@@ -261,7 +261,7 @@ So in the third session we don't argue with the inner critic, and we don't hand 
 
 "I'm sorry." The first of four old Hawaiian phrases. Said, it's an apology. Sounded, it becomes something else: the grief that was never allowed to flow.
 
-You don't have to tell anyone what it was. Not us, not the group. You can stay muted the whole time. Soft counts, and a hum is a complete practice.
+You don't have to tell anyone what it was. Not us, not the group. You can stay muted the whole time. Soft counts, and one quiet tone is a complete practice.
 
 
 Feel unforgivable? Come anyway.
@@ -310,7 +310,7 @@ ${TEXT_FOOT}`,
             .join('')}</table>`,
         '30px 44px 0',
       ),
-      panel('Try it tonight', null, `Say &ldquo;I&rsquo;m sorry&rdquo; out loud, once. Then don&rsquo;t say it: hum it. One low, soft tone that carries what the words carry. And listen to the three seconds of quiet afterwards. The difference between those two is the whole course.`),
+      panel('Try it tonight', null, `Say &ldquo;I&rsquo;m sorry&rdquo; out loud, once. Then don&rsquo;t say it: sound it. One low, soft tone that carries what the words carry. And listen to the three seconds of quiet afterwards. The difference between those two is the whole course.`),
       row(
         h2(`One week from today, ${em('we begin.')}`) +
           schedule() +
@@ -340,7 +340,7 @@ So in the Forgiveness Course we don't only say them. We sound them. Because the 
   I love you: the love under everything, met as experience and not as belief, in its own time.
 
 TRY IT TONIGHT
-Say "I'm sorry" out loud, once. Then don't say it: hum it. One low, soft tone that carries what the words carry. And listen to the three seconds of quiet afterwards. The difference between those two is the whole course.
+Say "I'm sorry" out loud, once. Then don't say it: sound it. One low, soft tone that carries what the words carry. And listen to the three seconds of quiet afterwards. The difference between those two is the whole course.
 
 
 ONE WEEK FROM TODAY, WE BEGIN
@@ -461,7 +461,7 @@ ${TEXT_FOOT}`,
         h2(`What to ${em('bring.')}`) +
           marked(
             [
-              ['1', 'A room where you can make a sound.', 'Or one where you can&rsquo;t. A hum counts, and so does sounding it silently, fully imagined.'],
+              ['1', 'A room where you can make a sound.', 'Or one where you can&rsquo;t. A soft tone counts, and so does sounding it silently, fully imagined.'],
               ['2', 'Headphones, if others are home.', 'You can stay muted the whole two hours. Nobody will hear you unless you choose it.'],
               ['3', 'Nothing forgiven. Nothing decided.', 'No good voice, no experience, no readiness. Whatever you&rsquo;re carrying is the right thing to arrive with.'],
             ],
@@ -491,7 +491,7 @@ THE FIRST SESSION: two hours, live on Zoom
 
 WHAT TO BRING
 
-- A room where you can make a sound. Or one where you can't. A hum counts, and so does sounding it silently, fully imagined.
+- A room where you can make a sound. Or one where you can't. A soft tone counts, and so does sounding it silently, fully imagined.
 - Headphones, if others are home. You can stay muted the whole two hours. Nobody will hear you unless you choose it.
 - Nothing forgiven. Nothing decided. No good voice, no experience, no readiness. Whatever you're carrying is the right thing to arrive with.
 

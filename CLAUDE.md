@@ -518,14 +518,16 @@ truth for the site's voice, headlines, paragraphs, quotes, and the non-negotiabl
 rules of the practice (Somatic Vocal Healing). No page should be written or
 changed without first pulling language and direction from it.
 
-The copy book is **v3 (17 November 2026)**. The four guidelines it enforces
+The copy book is **v3 (17 November 2026, revised 28 November 2026)**. The four guidelines it enforces
 (never break these in any string on the site):
 
 1. The sound **of** something, never *for* it (one named exception — chapter 35).
 2. **Acknowledgment before release** — release follows acknowledgment by
    itself; it is never the method, and "letting go" is never the instruction.
-3. **Sounding**, not singing — and sounds stay tonal: a tone, a hum, never
-   whispering or breath alone.
+3. **Sounding**, not singing — and sounds stay tonal: a tone, never humming,
+   whispering or breath alone. Humming is not part of the
+   practice, and a soft sound counts as a sound, no more: never "soft counts
+   double" (Jacob, 28 November 2026).
 4. Facilitators **hold space**; the participant heals themselves.
 
 Two terms (v3): *somatic sounding* is the act itself; *Somatic Vocal Healing*
@@ -714,6 +716,18 @@ November"). Jacob, 25 Nov 2026.
   photo on email 1, the paper one on 2 and 3. **A seal or header says percents and names, never
   a price** (many currencies), and a headline's italic part stands on its own line. Migration
   0104 wrote the headers into the drafts.
+- **One header on emails 2 and 3** (28 Nov 2026, Jacob): the paper picture carried an eyebrow
+  and a headline of its own over the email's eyebrow and headline, which read as two headers.
+  Emails 2 and 3 now open on the sale bar as text, then **the email's own headline with the
+  discount seal beside it** (`header` in `build.mjs`; the seals are transparent pictures,
+  `public/email/bfcm/seal-<name>.png`, drawn by `headers/seals.cjs`; on a phone the seal sits top
+  right and the headline takes the whole width). Email 1 keeps its photo. The paper pictures
+  (`<A-E>-2.jpg`, `-3.jpg`) are no longer used. **The first-timers' emails A2 and A3 (#25, #26)
+  are about the workshop only**, never the masterclass; A2 is one list of what people say before
+  a first time, with two voices from the workshop page. **Migration 0106** wrote the ten drafts
+  (#25, #26, #28, #29, #31, #32, #34, #35, #37, #38), each only while its body was still the one
+  0105 wrote (a draft edited by hand is left alone). **A header picture must never repeat what
+  the email says under it.**
 - **After the sale** nothing needs switching off. To run another sale: move the two
   timestamps, the label, the tag and the scope in `promo.ts`.
 

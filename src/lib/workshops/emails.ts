@@ -268,9 +268,9 @@ function reminderWarmth(type: string): { html: string; text: string } {
   if (type === 'reminder_7d') {
     return {
       html: `<p style="margin:14px 0 0;">A week from now, we sound together. There's nothing to do between now and then — let it sit in the calendar.</p>
-      <p style="margin:14px 0 0;">If the idea of using your voice where others can hear it sits oddly, that's normal, and expected. Nobody is put on the spot, cameras can stay off, and soft counts — soft often counts double.</p>
+      <p style="margin:14px 0 0;">If the idea of using your voice where others can hear it sits oddly, that's normal, and expected. Nobody is put on the spot, cameras can stay off, and soft counts.</p>
       ${quoteLine("You don't need a good voice. You need an honest one.")}`,
-      text: `\nA week from now, we sound together. There's nothing to do between now and then — let it sit in the calendar.\n\nIf the idea of using your voice where others can hear it sits oddly, that's normal, and expected. Nobody is put on the spot, cameras can stay off, and soft counts — soft often counts double.\n`,
+      text: `\nA week from now, we sound together. There's nothing to do between now and then — let it sit in the calendar.\n\nIf the idea of using your voice where others can hear it sits oddly, that's normal, and expected. Nobody is put on the spot, cameras can stay off, and soft counts.\n`,
     };
   }
   if (type === 'reminder_2d') {
@@ -1409,7 +1409,7 @@ export function noShowEmail2(ctx: LifecycleCtx & { hubUrl: string }): EmailConte
     heading: 'Your seat is still yours',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">A couple of days ago you missed <strong>${escapeHtml(ctx.workshopTitle)}</strong>. Your place didn't expire — you can put it on any upcoming date, free. It's already paid for.</p>
-      <p style="margin:0 0 14px;">And if what stopped you was the idea of sounding where strangers can hear you — that's more common than you'd think. Nobody is put on the spot. Cameras can stay off. Soft counts; soft often counts double.</p>
+      <p style="margin:0 0 14px;">And if what stopped you was the idea of sounding where strangers can hear you — that's more common than you'd think. Nobody is put on the spot. Cameras can stay off. Soft counts.</p>
       <p style="margin:0;">The replay is there too, but the live hour is the thing — witnessed is different from watched.</p>`,
     cta: { label: 'Choose a new date', href: ctx.hubUrl },
     unsubscribeUrl: ctx.unsubscribeUrl,
@@ -1417,7 +1417,7 @@ export function noShowEmail2(ctx: LifecycleCtx & { hubUrl: string }): EmailConte
   return {
     subject: 'Your seat is still yours',
     html,
-    text: `${textGreeting(ctx.name)}\n\nA couple of days ago you missed ${ctx.workshopTitle}. Your place didn't expire — you can put it on any upcoming date, free. It's already paid for.\n\nAnd if what stopped you was the idea of sounding where strangers can hear you — that's more common than you'd think. Nobody is put on the spot. Cameras can stay off. Soft counts; soft often counts double.\n\nThe replay is there too, but the live hour is the thing — witnessed is different from watched.\n\n${ctx.hubUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nA couple of days ago you missed ${ctx.workshopTitle}. Your place didn't expire — you can put it on any upcoming date, free. It's already paid for.\n\nAnd if what stopped you was the idea of sounding where strangers can hear you — that's more common than you'd think. Nobody is put on the spot. Cameras can stay off. Soft counts.\n\nThe replay is there too, but the live hour is the thing — witnessed is different from watched.\n\n${ctx.hubUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
