@@ -631,10 +631,36 @@
 .cc-bump-blurb,
 .tw-reg-bump-blurb { font-family: var(--font-body); font-size: 14px; line-height: 1.5; color: var(--co-ink-quiet); }
 @media (max-width: 520px) {
+  /* The picture sits beside the title and price; the points and the blurb
+     run underneath it at the card's full width, so the card stays short. */
   .cc-bump,
-  .tw-reg-bump { grid-template-columns: auto minmax(0, 1fr); }
+  .tw-reg-bump { column-gap: 12px; row-gap: 10px; }
+  .cc-bump-thumb,
+  .tw-reg-bump-thumb { width: 52px; height: 52px; grid-row: 1; grid-column: 2; }
+  .cc-bump-body,
+  .tw-reg-bump-body { display: contents; }
+  .cc-bump-head,
+  .tw-reg-bump-head {
+    grid-row: 1; grid-column: 3; align-self: center;
+    flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 4px;
+  }
+  .cc-bump-points,
+  .tw-reg-bump-points,
+  .cc-bump-blurb,
+  .tw-reg-bump-blurb { grid-column: 2 / -1; }
+  .cc-bump-points,
+  .tw-reg-bump-points { flex-direction: column; gap: 4px; }
+  .cc-bump-price,
+  .tw-reg-bump-price { white-space: normal; line-height: 1.6; }
+  .cc-bump-save,
+  .tw-reg-bump-save { display: inline-block; margin-left: 0; }
+}
+@media (max-width: 340px) {
+  /* The narrowest phones leave the card too little room for a picture. */
   .cc-bump-thumb,
   .tw-reg-bump-thumb { display: none; }
+  .cc-bump-head,
+  .tw-reg-bump-head { grid-column: 2 / -1; }
 }
 
 /* ---------- The Songdeck gift (the hour after a live workshop) ---------- */
